@@ -1,5 +1,7 @@
 # FTMS: First-To-Market System for halo vaults
 
+Based on Spark's [Spark Prime Vault (`spPRIME`)](https://github.com/sparkdotfi/spark-prime-vault) at commit `a1b60c3`.
+
 A vault that issues an ERC-20 share token whose value grows at a rate set by an operator. Deposits and redemptions go through first-in, first-out queues, so they can wait when the vault is at capacity or doesn't hold enough of the deposited token. The vault contract is upgradeable (UUPS).
 
 Users deposit a token, the vault's `asset`, and get vault shares in return. An account with `TAKER_ROLE` can take the deposited tokens out of the vault to deploy them elsewhere, and return them later. Redemptions are paid in the same token, from what the vault holds.
@@ -11,7 +13,7 @@ Each share's value grows at the Vault Savings Rate (VSR), a per-second compoundi
 
 Shares grow at the VSR whether or not the deployed capital earns it.
 
-This code is derived from Spark's [Spark Prime Vault (`spPRIME`)](https://github.com/sparkdotfi/spark-prime-vault), at commit `a1b60c3`. `spPRIME` takes USDC and deposits it into a savings vault (`spUSDC`) itself. This vault never deposits into another vault. Setting `asset = spUSDC` and `referenceOracle = spUSDC` gives a setup similar to `spPRIME`, except that users deposit and receive `spUSDC` rather than USDC. Behaviour not described below is the same as in `spPRIME`.
+`spPRIME` takes USDC and deposits it into a savings vault (`spUSDC`) itself. This vault never deposits into another vault. Setting `asset = spUSDC` and `referenceOracle = spUSDC` gives a setup similar to `spPRIME`, except that users deposit and receive `spUSDC` rather than USDC. Behaviour not described below is the same as in `spPRIME`.
 
 ## Differences from `spPRIME`
 
