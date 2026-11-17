@@ -232,6 +232,28 @@ contract RoleBasedTests is TestBase {
         assertEq(spPrime.referenceValueOf(user2), 2_000_000e6 - 2);
     }
 
+    function test_impair_referenceValue() external {
+        _requestDeposit(user, 1_000_000e6);  // Filled instantly
+        _pause();
+
+        skip(365 days);
+
+        uint256 valueBefore  = spPrime.totalReferenceValue();
+        uint256 assetsBefore = spPrime.totalAssets();
+
+        vm.prank(lossManager);
+        spPrime.impair(100_000e6);
+
+        // The loss is 100k USDC, whatever spUSDC is worth.
+        assertEq(spPrime.totalReferenceValue(), valueBefore - 100_000e6 - 1);
+
+        assertApproxEqAbs(
+            assetsBefore - spPrime.totalAssets(),
+            spUSDC.convertToShares(100_000e6),
+            2
+        );
+    }
+
     /**********************************************************************************************/
     /*** setCapacity tests                                                                      ***/
     /**********************************************************************************************/
@@ -609,6 +631,28 @@ contract RoleBasedTests is TestBase {
 
         assertEq(spUSDC.balanceOf(address(spPrime)), 0);
         assertEq(spUSDC.balanceOf(taker),            expectedSavingsShares);
+    }
+
+    function test_take_returnCapitalByTransfer() external {
+        uint256 assets = spUSDC.convertToShares(1_000_000e6);
+
+        _requestDeposit(user, 1_000_000e6);  // Filled instantly
+
+        _take(assets);
+
+        assertEq(spPrime.availableLiquidAssets(), 0);
+
+        // The taker returns capital by sending assets straight to the vault.
+        vm.prank(taker);
+        assertTrue(spUSDC.transfer(address(spPrime), assets));
+
+        assertEq(spPrime.availableLiquidAssets(), assets);
+
+        _requestRedeem(user, spPrime.balanceOf(user));
+        _processPendingRedeems();
+
+        assertEq(spPrime.totalSupply(), 0);
+        assertEq(spUSDC.assetsOf(user), 1_000_000e6 - 2);
     }
 
     /**********************************************************************************************/

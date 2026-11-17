@@ -243,4 +243,59 @@ contract ClaimTests is TestBase {
         _assertAccountBalances(vaultBalances);
     }
 
+
+    function test_claim_claimableAssetsAreReserved() external {
+        address other = makeAddr("other");
+
+        _setCapacity(0);
+
+        uint256 assets = spUSDC.convertToShares(1_000_000e6);
+
+        _requestDeposit(user, 1_000_000e6);
+        _requestDepositCancellation(user, 0, assets);
+
+        vm.mockCallRevert(
+            address(spUSDC),
+            abi.encodeWithSelector(IERC20.transfer.selector, user, assets),
+            ""
+        );
+
+        _processPendingDepositCancellations(1);
+
+        vm.clearMockedCalls();
+
+        assertEq(spPrime.totalClaimable(),           assets);
+        assertEq(spUSDC.balanceOf(address(spPrime)), assets);
+
+        // Claimable assets are neither liquidity nor takeable.
+        assertEq(spPrime.availableLiquidAssets(), 0);
+
+        vm.expectRevert(ISparkPrimeVault.InsufficientAssets.selector);
+        _take(1);
+
+        // Only the new deposit can be taken or used for cancellations.
+        uint256 otherAssets = spUSDC.convertToShares(500_000e6);
+
+        _requestDeposit(other, 500_000e6);
+        _requestDepositCancellation(other, 1, otherAssets);
+
+        assertEq(spPrime.availableLiquidAssets(), otherAssets);
+
+        vm.expectRevert(ISparkPrimeVault.InsufficientAssets.selector);
+        _take(otherAssets + 1);
+
+        _take(otherAssets);
+
+        _processPendingDepositCancellations(1);
+
+        assertEq(spPrime.pendingCancelledDepositAssets(), otherAssets);
+        assertEq(spUSDC.balanceOf(other),                  0);
+
+        // The claim is still fully backed.
+        spPrime.claim(user);
+
+        assertEq(spUSDC.balanceOf(user),             assets);
+        assertEq(spUSDC.balanceOf(address(spPrime)), 0);
+    }
+
 }

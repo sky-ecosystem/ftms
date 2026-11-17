@@ -2713,4 +2713,24 @@ contract ProcessPendingRedeemsTests is SparkPrimeVaultTests {
         _assertAccountBalances(vaultBalances, 10);
     }
 
+
+    function test_processPendingRedeems_zeroPayoutTransferFails() external {
+        // One vault share is worth less than one asset unit, so it pays out zero.
+        assertEq(spPrime.convertToAssets(1), 0);
+
+        // A token that rejects zero transfers does not block the queue.
+        vm.mockCallRevert(
+            address(spUSDC),
+            abi.encodeWithSelector(IERC20.transfer.selector, ali, 0),
+            ""
+        );
+
+        uint256 pendingRedeemShares = spPrime.pendingRedeemShares();
+
+        _processPendingRedeems(1, 1);
+
+        assertEq(spPrime.pendingRedeemShares(),  pendingRedeemShares - 1);
+        assertEq(spPrime.claimableAssetsOf(ali), 0);
+    }
+
 }
