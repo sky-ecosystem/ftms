@@ -20,14 +20,14 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *                   deposit requests, cancel it.
      * @param  recipient The address that receives the proceeds when the request is filled.
      * @param  timestamp The timestamp of the request [unix epoch time].
-     * @param  shares    The unfilled shares of the request, savings shares for deposit and deposit
+     * @param  amount    The unfilled amount of the request, assets for deposit and deposit
      *                   cancellation requests, vault shares for redeem requests.
      */
     struct Request {
         address owner;
         address recipient;
         uint64  timestamp;
-        uint256 shares;
+        uint256 amount;
     }
 
     /**********************************************************************************************/
@@ -58,37 +58,34 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Emitted when a deposit request is filled, fully or partially.
-     * @param  requestId             The ID of the deposit request
-     * @param  owner                 The owner of the deposit request
-     * @param  recipient             The address receiving the minted shares
-     * @param  savingsSharesConsumed The amount of savings shares filled [savings share units]
-     * @param  assetsConverted       The asset value of the filled savings shares [asset units]
-     * @param  sharesMinted          The amount of vault shares minted to the recipient
-     *                               [share units]
+     * @param  requestId      The ID of the deposit request
+     * @param  owner          The owner of the deposit request
+     * @param  recipient      The address receiving the minted shares
+     * @param  assetsConsumed The amount of assets filled [asset units]
+     * @param  referenceValue The reference value of the filled assets [reference units]
+     * @param  sharesMinted   The amount of vault shares minted to the recipient [share units]
      */
     event Deposit(
         uint256 indexed requestId,
         address indexed owner,
         address indexed recipient,
-        uint256         savingsSharesConsumed,
-        uint256         assetsConverted,
+        uint256         assetsConsumed,
+        uint256         referenceValue,
         uint256         sharesMinted
     );
 
     /**
      * @notice Emitted when a deposit cancellation request is filled, fully or partially.
-     * @param  requestId           The ID of the deposit cancellation request
-     * @param  owner               The owner of the deposit cancellation request
-     * @param  recipient           The address receiving the assets
-     * @param  savingsSharesBurned The amount of savings shares redeemed [savings share units]
-     * @param  assetsReceived      The amount of assets sent to, or made claimable by, the
-     *                             recipient [asset units]
+     * @param  requestId      The ID of the deposit cancellation request
+     * @param  owner          The owner of the deposit cancellation request
+     * @param  recipient      The address receiving the assets
+     * @param  assetsReceived The amount of assets sent to, or made claimable by, the recipient
+     *                        [asset units]
      */
     event DepositCancellation(
         uint256 indexed requestId,
         address indexed owner,
         address indexed recipient,
-        uint256         savingsSharesBurned,
         uint256         assetsReceived
     );
 
@@ -100,18 +97,18 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     event DepositCancellationRecipientUpdated(uint256 indexed requestId, address indexed recipient);
 
     /**
-     * @notice Emitted when savings shares of a deposit request are cancelled, fully or partially,
-     *         and moved to the deposit cancellation queue.
+     * @notice Emitted when assets of a deposit request are cancelled, fully or partially, and
+     *         moved to the deposit cancellation queue.
      * @param  depositRequestId The ID of the deposit request
      * @param  cancelRequestId  The ID of the new deposit cancellation request
      * @param  recipient        The address to receive the assets when the cancellation is filled
-     * @param  sharesCancelled  The amount of savings shares cancelled [savings share units]
+     * @param  assetsCancelled  The amount of assets cancelled [asset units]
      */
     event DepositCancellationRequest(
         uint256 indexed depositRequestId,
         uint256 indexed cancelRequestId,
         address indexed recipient,
-        uint256         sharesCancelled
+        uint256         assetsCancelled
     );
 
     /**
@@ -123,25 +120,23 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Emitted when a deposit is requested.
-     * @param  requestId           The ID of the deposit request
-     * @param  owner               The address that created the request
-     * @param  recipient           The address to receive the shares when the request is filled
-     * @param  assetsDeposited     The amount of assets deposited [asset units]
-     * @param  savingsSharesMinted The amount of savings shares received for the assets
-     *                             [savings share units]
+     * @param  requestId       The ID of the deposit request
+     * @param  owner           The address that created the request
+     * @param  recipient       The address to receive the shares when the request is filled
+     * @param  assetsDeposited The amount of assets deposited [asset units]
      */
     event DepositRequest(
         uint256 indexed requestId,
         address indexed owner,
         address indexed recipient,
-        uint256         assetsDeposited,
-        uint256         savingsSharesMinted
+        uint256         assetsDeposited
     );
 
     /**
      * @notice Emitted every time `drip()` is called at a new `rho`.
      * @param  chi  The new rate accumulator value after the drip operation [ray]
-     * @param  diff The difference in total assets due to the rate accumulation [asset units]
+     * @param  diff The difference in total reference value due to the rate accumulation
+     *              [reference units]
      */
     event Drip(uint192 chi, uint256 diff);
 
@@ -155,7 +150,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Emitted when the minimum deposit cancellation is updated.
      * @param  caller                 The address that updated the minimum deposit cancellation
-     * @param  minDepositCancellation The new minimum deposit cancellation [savings share units]
+     * @param  minDepositCancellation The new minimum deposit cancellation [asset units]
      */
     event MinDepositCancellationSet(address indexed caller, uint256 minDepositCancellation);
 
@@ -181,25 +176,25 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Emitted when pending deposits are processed.
-     * @param  caller           The address that processed the pending deposits
-     * @param  maxSavingsShares The maximum amount of savings shares processed
-     * @param  maxRequests      The maximum number of requests processed
+     * @param  caller      The address that processed the pending deposits
+     * @param  maxAssets   The maximum amount of assets processed
+     * @param  maxRequests The maximum number of requests processed
      */
     event ProcessPendingDeposits(
         address indexed caller,
-        uint256         maxSavingsShares,
+        uint256         maxAssets,
         uint256         maxRequests
     );
 
     /**
      * @notice Emitted when pending deposit cancellations are processed.
-     * @param  caller           The address that processed the pending deposit cancellations
-     * @param  maxSavingsShares The maximum amount of savings shares processed
-     * @param  maxRequests      The maximum number of requests processed
+     * @param  caller      The address that processed the pending deposit cancellations
+     * @param  maxAssets   The maximum amount of assets processed
+     * @param  maxRequests The maximum number of requests processed
      */
     event ProcessPendingDepositCancellations(
         address indexed caller,
-        uint256         maxSavingsShares,
+        uint256         maxAssets,
         uint256         maxRequests
     );
 
@@ -217,20 +212,18 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Emitted when a redeem request is filled, fully or partially.
-     * @param  requestId           The ID of the redeem request
-     * @param  owner               The owner of the redeem request
-     * @param  recipient           The address receiving the assets
-     * @param  sharesBurned        The amount of vault shares burned [share units]
-     * @param  savingsSharesBurned The amount of savings shares redeemed [savings share units]
-     * @param  assetsReceived      The amount of assets sent to, or made claimable by, the
-     *                             recipient [asset units]
+     * @param  requestId      The ID of the redeem request
+     * @param  owner          The owner of the redeem request
+     * @param  recipient      The address receiving the assets
+     * @param  sharesBurned   The amount of vault shares burned [share units]
+     * @param  assetsReceived The amount of assets sent to, or made claimable by, the recipient
+     *                        [asset units]
      */
     event Redeem(
         uint256 indexed requestId,
         address indexed owner,
         address indexed recipient,
         uint256         sharesBurned,
-        uint256         savingsSharesBurned,
         uint256         assetsReceived
     );
 
@@ -271,7 +264,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  requestId The ID of the deposit request
      * @param  owner     The address that created the request
      * @param  recipient The address to receive the shares when the request is filled
-     * @param  assets    The amount of underlying assets deposited [asset units]
+     * @param  assets    The amount of assets deposited [asset units]
      */
     event Referral(
         uint16  indexed referral,
@@ -282,20 +275,19 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     );
 
     /**
-     * @notice Emitted when savings shares are withdrawn from the vault by accounts with
-     *         `TAKER_ROLE`.
-     * @param  caller The address that withdrew the savings shares
-     * @param  shares The amount of savings shares withdrawn from the vault [savings share units]
+     * @notice Emitted when assets are withdrawn from the vault by accounts with `TAKER_ROLE`.
+     * @param  caller The address that withdrew the assets
+     * @param  assets The amount of assets withdrawn from the vault [asset units]
      */
-    event Take(address indexed caller, uint256 shares);
+    event Take(address indexed caller, uint256 assets);
 
     /**
      * @notice Emitted when the the vault is impaired.
-     * @param  caller The address that impaired the total assets
-     * @param  chi    The new rate accumulator value after the impairment [ray]
-     * @param  assets The impairment amount [asset units]
+     * @param  caller         The address that impaired the vault
+     * @param  chi            The new rate accumulator value after the impairment [ray]
+     * @param  referenceValue The impairment amount [reference units]
      */
-    event Impairment(address indexed caller, uint192 chi, uint256 assets);
+    event Impairment(address indexed caller, uint192 chi, uint256 referenceValue);
 
     /**
      * @notice Emitted when the vault is unpaused.
@@ -340,11 +332,11 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Thrown when the redeem fee rate is above the maximum redeem fee rate.
     error FeeTooHigh();
 
-    /// @notice Thrown when the impairment amount is greater than total assets.
+    /// @notice Thrown when the impairment amount is greater than the total reference value.
     error ImpairmentTooLarge();
 
-    /// @notice Thrown when taking more savings shares than the vault holds.
-    error InsufficientShares();
+    /// @notice Thrown when taking more assets than the vault holds, excluding claimable ones.
+    error InsufficientAssets();
 
     /**
      * @notice Thrown when a request ID is past the end of the queue or, in the single-request
@@ -373,7 +365,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     error MinVSRTooLow();
 
     /**
-     * @notice Thrown when the request has no unfilled shares because it was cancelled or already
+     * @notice Thrown when the request has no unfilled amount because it was cancelled or already
      *         filled.
      */
     error NoRequest();
@@ -384,8 +376,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Thrown when the caller is not the owner of the request.
     error NotRequestOwner();
 
-    /// @notice Thrown when cancelling more savings shares than the deposit request has.
-    error SavingsSharesTooHigh();
+    /// @notice Thrown when cancelling more assets than the deposit request has.
+    error AssetsTooHigh();
 
     /// @notice Thrown when a requested range of requests starts after the end of the queue.
     error StartIdTooLarge();
@@ -426,25 +418,27 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Initializes the vault implementation with core configuration.
-     * @dev    Can only be called once. Sets the asset and decimals from `savings_`, sets
+     * @dev    Can only be called once. Sets the decimals from `asset_`, sets
      *         `chi`/`vsr`/`minVSR`/`maxVSR` to RAY, sets `rho` to `block.timestamp`, grants
-     *         `DEFAULT_ADMIN_ROLE` to `admin_`, sets the minimum deposit, deposit cancellation and
-     *         redeem amounts, and approves `savings_` to spend the vault's assets. All minimums
-     *         must be nonzero.
-     * @param  savings_                The address of the ERC-4626 savings vault the deposited
-     *                                 assets are held in
+     *         `DEFAULT_ADMIN_ROLE` to `admin_`, and sets the minimum deposit, deposit cancellation
+     *         and redeem amounts. All minimums must be nonzero.
+     * @param  asset_                  The address of the token that is deposited and paid out
+     * @param  referenceOracle_        The address converting assets to and from their reference
+     *                                 value, which `chi` is denominated in. `address(0)` values
+     *                                 one asset unit at one reference unit
      * @param  name_                   The name of the vault token
      * @param  symbol_                 The symbol of the vault token
      * @param  admin_                  The address to be granted the admin role
      * @param  minDeposit_             The minimum amount of assets for a deposit request
      *                                 [asset units]
-     * @param  minDepositCancellation_ The minimum amount of savings shares for a deposit
-     *                                 cancellation request [savings share units]
+     * @param  minDepositCancellation_ The minimum amount of assets for a deposit cancellation
+     *                                 request [asset units]
      * @param  minRedeem_              The minimum amount of shares for a redeem request
      *                                 [share units]
      */
     function initialize(
-        address        savings_,
+        address        asset_,
+        address        referenceOracle_,
         string  memory name_,
         string  memory symbol_,
         address        admin_,
@@ -475,10 +469,10 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     function setMinDeposit(uint256 minDeposit_) external;
 
     /**
-     * @notice Sets the minimum amount of savings shares for a deposit cancellation request.
+     * @notice Sets the minimum amount of assets for a deposit cancellation request.
      * @dev    This function can only be called by accounts with `DEFAULT_ADMIN_ROLE`.
      *         The minimum must be nonzero.
-     * @param  minDepositCancellation_ The new minimum deposit cancellation [savings share units]
+     * @param  minDepositCancellation_ The new minimum deposit cancellation [asset units]
      */
     function setMinDepositCancellation(uint256 minDepositCancellation_) external;
 
@@ -506,31 +500,32 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Impairs the vault by updating the rate accumulator (`chi`) to account for the
-     *         `assets_` loss.
+     *         `referenceValue_` loss.
      * @dev    This function can only be called by accounts with `LOSS_MANAGER_ROLE` while the vault
      *         is paused. Drips before computing the new `chi` as:
-     *         `chi = (totalAssets() - assets_) * RAY / totalSupply`
-     *         `assets_` must be nonzero and at most `totalAssets()`. Reverts if `totalSupply` is
-     *         zero. Impairing the full `totalAssets()` sets `chi` to zero, after which every
-     *         conversion reverts.
+     *         `chi = (totalReferenceValue() - referenceValue_) * RAY / totalSupply`
+     *         `referenceValue_` must be nonzero and at most `totalReferenceValue()`. Reverts if
+     *         `totalSupply` is zero. Impairing the full `totalReferenceValue()` sets `chi` to zero,
+     *         after which every conversion reverts.
      *         This is a HIGHLY SENSITIVE AND NON-REVERSIBLE ACTION, and a large enough impairment
      *         can brick the vault, requiring a contract upgrade to undo, so it must be taken with
      *         extreme care.
-     * @param  assets_ The amount to impair total assets by [asset units]
+     * @param  referenceValue_ The reference value to impair the total by [reference units]
      */
-    function impair(uint256 assets_) external;
+    function impair(uint256 referenceValue_) external;
 
     /**********************************************************************************************/
     /*** Taker external functions                                                               ***/
     /**********************************************************************************************/
 
     /**
-     * @notice Allows authorized accounts to withdraw savings shares from the vault.
+     * @notice Allows authorized accounts to withdraw assets from the vault.
      * @dev    This function can only be called by accounts with `TAKER_ROLE`.
-     *         The function transfers the specified amount of savings shares to the caller.
-     * @param  savingsShares_ The amount of savings shares to withdraw [savings share units]
+     *         The function transfers the specified amount of assets to the caller.
+     *         Assets owed to claimants cannot be taken.
+     * @param  assets_ The amount of assets to withdraw [asset units]
      */
-    function take(uint256 savingsShares_) external;
+    function take(uint256 assets_) external;
 
     /**********************************************************************************************/
     /*** Operator external functions                                                            ***/
@@ -541,7 +536,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @dev    This function can only be called by accounts with `OPERATOR_ROLE`.
      *         Deposit requests are only filled while `totalSupply` is below this value.
      *         `capacity_` must be at most `type(uint128).max`, so that converting the available
-     *         capacity to savings shares cannot overflow when processing deposits.
+     *         capacity to assets cannot overflow when processing deposits.
      * @param  capacity_ The new maximum capacity [share units]
      */
     function setCapacity(uint256 capacity_) external;
@@ -550,8 +545,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @notice Sets the Vault Savings Rate (VSR) within the configured bounds.
      * @dev    This function can only be called by accounts with `OPERATOR_ROLE`.
      *         Drips before updating the VSR, so the previous rate applies up to the current block.
-     *         The VSR determines the rate at which user shares grow over time. A higher VSR means
-     *         faster share growth and higher yields for depositors.
+     *         The VSR determines the rate at which the reference value of user shares grows over
+     *         time. A higher VSR means faster share growth and higher yields for depositors.
      * @param  vsr_ The new VSR value [ray]
      */
     function setVSR(uint256 vsr_) external;
@@ -559,40 +554,36 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Fills pending deposit requests in queue order, minting shares to their recipients.
      * @dev    This function can only be called by accounts with `OPERATOR_ROLE` while the vault is
-     *         not paused. Processing is limited by `maxSavingsShares_`, `maxRequests_`, and the
-     *         available capacity. The last processed request may be partially filled.
-     * @param  maxSavingsShares_ The maximum amount of savings shares to process
-     *                           [savings share units]
-     * @param  maxRequests_      The maximum number of queue entries to visit, counting fully
-     *                           cancelled ones
+     *         not paused. Processing is limited by `maxAssets_`, `maxRequests_`, and the available
+     *         capacity. The last processed request may be partially filled.
+     * @param  maxAssets_   The maximum amount of assets to process [asset units]
+     * @param  maxRequests_ The maximum number of queue entries to visit, counting fully cancelled
+     *                      ones
      */
-    function processPendingDeposits(uint256 maxSavingsShares_, uint256 maxRequests_) external;
+    function processPendingDeposits(uint256 maxAssets_, uint256 maxRequests_) external;
 
     /**
-     * @notice Fills pending deposit cancellation requests in queue order, redeeming their savings
-     *         shares for their recipients.
+     * @notice Fills pending deposit cancellation requests in queue order, sending their assets to
+     *         their recipients.
      * @dev    This function can only be called by accounts with `OPERATOR_ROLE`, including while
-     *         the vault is paused. Processing is limited by `maxSavingsShares_`, `maxRequests_`,
-     *         and the savings shares the vault can redeem. The last processed request may be
-     *         partially filled. Assets that cannot be sent to a recipient are credited as claimable
-     *         assets.
-     * @param  maxSavingsShares_ The maximum amount of savings shares to process
-     *                           [savings share units]
-     * @param  maxRequests_      The maximum number of queue entries to visit
+     *         the vault is paused. Processing is limited by `maxAssets_`, `maxRequests_`, and the
+     *         available liquid assets. The last processed request may be partially filled. Assets
+     *         that cannot be sent to a recipient are credited as claimable assets.
+     * @param  maxAssets_   The maximum amount of assets to process [asset units]
+     * @param  maxRequests_ The maximum number of queue entries to visit
      */
-    function processPendingDepositCancellations(uint256 maxSavingsShares_, uint256 maxRequests_)
+    function processPendingDepositCancellations(uint256 maxAssets_, uint256 maxRequests_)
         external;
 
     /**
-     * @notice Fills pending redeem requests in queue order, burning their shares and redeeming
-     *         savings shares for their recipients.
+     * @notice Fills pending redeem requests in queue order, burning their shares and sending
+     *         assets to their recipients.
      * @dev    This function can only be called by accounts with `OPERATOR_ROLE` while the vault is
      *         not paused. Processing is limited by `maxShares_`, `maxRequests_`, and the available
      *         liquid assets, which are re-checked before each request. The last processed request
-     *         may be partially filled. The value of the burned vault shares is converted to savings
-     *         shares rounding down, which are then redeemed, so the recipient receives at most
-     *         that value and rounding stays with the vault. Assets that cannot be sent to a
-     *         recipient are credited as claimable assets.
+     *         may be partially filled. The burned vault shares are converted to assets rounding
+     *         down, which are then sent, so rounding stays with the vault. Assets that cannot be
+     *         sent to a recipient are credited as claimable assets.
      * @param  maxShares_   The maximum amount of vault shares to process [share units]
      * @param  maxRequests_ The maximum number of queue entries to visit
      */
@@ -637,8 +628,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**********************************************************************************************/
 
     /**
-     * @notice Requests a deposit of assets, which are deposited into the savings vault and queued
-     *         to be converted into shares.
+     * @notice Requests a deposit of assets, which are transferred to the vault and queued to be
+     *         converted into shares.
      * @dev    Can only be called while the vault is not paused. `assets_` must be at least
      *         `minDeposit` and `recipient_` must be neither `address(0)` nor the vault. Updates the
      *         rate accumulator (via `drip()`) before depositing. If no unfilled deposit requests
@@ -654,29 +645,28 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
         returns (uint256 requestId_);
 
     /**
-     * @notice Cancels `savingsShares_` of a deposit request and queues them to be redeemed for
-     *         `recipient_`.
+     * @notice Cancels `assets_` of a deposit request and queues them to be sent to `recipient_`.
      * @dev    Can only be called by the owner of the request, including while the vault is paused.
-     *         `savingsShares_` must be at least `minDepositCancellation` and at most the unfilled
-     *         savings shares of the request. If all of them are cancelled the deposit request is
+     *         `assets_` must be at least `minDepositCancellation` and at most the unfilled assets
+     *         of the request. If all of them are cancelled the deposit request is
      *         removed, otherwise it keeps the rest and its position in the queue. `recipient_` must
      *         be neither `address(0)` nor the vault. Does not drip and does not touch the rest of
      *         the deposit queue: a fully cancelled entry stays in place until
      *         `processPendingDeposits` or an instant fill skips over it.
-     * @param  requestId_     The ID of the deposit request to cancel
-     * @param  recipient_     The address to receive the assets when the cancellation is filled
-     * @param  savingsShares_ The amount of savings shares to cancel [savings share units]
-     * @return newRequestId_  The ID of the deposit cancellation request
+     * @param  requestId_    The ID of the deposit request to cancel
+     * @param  recipient_    The address to receive the assets when the cancellation is filled
+     * @param  assets_       The amount of assets to cancel [asset units]
+     * @return newRequestId_ The ID of the deposit cancellation request
      */
     function requestDepositCancellation(
         uint256 requestId_,
         address recipient_,
-        uint256 savingsShares_
+        uint256 assets_
     ) external returns (uint256 newRequestId_);
 
     /**
      * @notice Requests a redemption of shares, which are transferred to the vault and queued to be
-     *         redeemed for assets.
+     *         paid out in assets.
      * @dev    Can only be called while the vault is not paused. `shares_` must be at least
      *         `minRedeem`, checked before the fee is deducted, and `recipient_` must be neither
      *         `address(0)` nor the vault. Updates the rate accumulator (via `drip()`) before
@@ -800,7 +790,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Returns the identifier of the role that can set the redeem fee rate.
     function REDEEM_FEE_SETTER_ROLE() external view returns (bytes32);
 
-    /// @notice Returns the identifier of the role that can take savings shares.
+    /// @notice Returns the identifier of the role that can take assets.
     function TAKER_ROLE() external view returns (bytes32);
 
     /// @notice Returns the identifier of the role that can unpause the vault.
@@ -819,11 +809,12 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /*** Storage variables                                                                      ***/
     /**********************************************************************************************/
 
-    /// @notice Returns the address of the ERC-4626 savings vault the deposited assets are held in.
-    function savings() external view returns (address);
-
-    /// @notice Returns the address of the underlying asset.
+    /// @notice Returns the address of the token that is deposited and paid out.
     function asset() external view returns (address);
+
+    /// @notice Returns the address converting assets to and from their reference value, which
+    ///         `chi` is denominated in. `address(0)` values one asset unit at one reference unit.
+    function referenceOracle() external view returns (address);
 
     /// @notice Returns whether the vault is paused.
     function paused() external view returns (bool);
@@ -840,15 +831,15 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @dev    Chi represents the cumulative growth factor for all shares. It starts at 1e27 (`RAY`)
      *         and increases exponentially over time based on the Vault Savings Rate (VSR). The
      *         formula is: `chi = chi_old * (vsr)^(time_delta) / RAY` where `time_delta` is the time
-     *         since last drip. A user's assets are `assets = user_shares * nowChi() / RAY`.
+     *         since last drip. A user's reference value is `user_shares * nowChi() / RAY`.
      *         It can also be set directly by `impair(assets_)`.
      */
     function chi() external view returns (uint192);
 
     /**
      * @notice Returns the current Vault Savings Rate [ray].
-     * @dev    The VSR is the rate at which the vault's shares appreciate in value over time.
-     *         It's expressed in ray (1e27).
+     * @dev    The VSR is the rate at which the vault's shares appreciate in reference terms over
+     *         time. It's expressed in ray (1e27).
      */
     function vsr() external view returns (uint256);
 
@@ -865,8 +856,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     function minDeposit() external view returns (uint256);
 
     /**
-     * @notice Returns the minimum amount of savings shares for a deposit cancellation request
-     *         [savings share units].
+     * @notice Returns the minimum amount of assets for a deposit cancellation request
+     *         [asset units].
      */
     function minDepositCancellation() external view returns (uint256);
 
@@ -879,17 +870,14 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Returns the maximum allowed redeem fee rate [wad].
     function maxRedeemFeeRate() external view returns (uint256);
 
-    /// @notice Returns the total claimable assets in the vault.
+    /// @notice Returns the total claimable assets in the vault [asset units].
     function totalClaimable() external view returns (uint256);
 
-    /// @notice Returns the total savings shares in the deposit queue [savings share units].
-    function pendingDepositSavingsShares() external view returns (uint256);
+    /// @notice Returns the total assets in the deposit queue [asset units].
+    function pendingDepositAssets() external view returns (uint256);
 
-    /**
-     * @notice Returns the total savings shares in the deposit cancellation queue
-     *         [savings share units].
-     */
-    function pendingCancelledDepositSavingsShares() external view returns (uint256);
+    /// @notice Returns the total assets in the deposit cancellation queue [asset units].
+    function pendingCancelledDepositAssets() external view returns (uint256);
 
     /// @notice Returns the total vault shares in the redeem queue [share units].
     function pendingRedeemShares() external view returns (uint256);
@@ -916,22 +904,22 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Returns a pending deposit request.
      * @dev    Reverts if `requestId_` is before the first unprocessed pending request or does not
-     *         exist. A fully cancelled request still in the queue is returned with zero shares.
+     *         exist. A fully cancelled request still in the queue is returned with a zero amount.
      * @param  requestId_ The ID of the deposit request
      * @return owner_     The owner of the request
      * @return recipient_ The address to receive the shares when the request is filled
      * @return timestamp_ The timestamp of the request [unix epoch time]
-     * @return shares_    The unfilled savings shares of the request [savings share units]
+     * @return assets_    The unfilled assets of the request [asset units]
      */
     function getPendingDepositRequest(uint256 requestId_)
         external
         view
-        returns (address owner_, address recipient_, uint64 timestamp_, uint256 shares_);
+        returns (address owner_, address recipient_, uint64 timestamp_, uint256 assets_);
 
     /**
      * @notice Returns the deposit requests from the first unprocessed pending request to the end of
      *         the queue.
-     * @dev    Includes fully cancelled requests, which have zero shares.
+     * @dev    Includes fully cancelled requests, which have a zero amount.
      * @return requests_ The deposit requests
      */
     function pendingDepositRequests() external view returns (Request[] memory requests_);
@@ -941,7 +929,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @dev    Returns an empty array if `length_` is zero and `startId_` is valid. Reverts if
      *         `startId_` is before the first unprocessed pending request or if `startId_` is itself
      *         past the end of the queue. Length is clamped to the number of request entries
-     *         starting from `startId_`. Includes fully cancelled requests, which have zero shares.
+     *         starting from `startId_`. Includes fully cancelled requests, which have a zero
+     *         amount.
      * @param  startId_  The first request ID to return
      * @param  length_   The number of requests to return
      * @return requests_ The deposit requests
@@ -965,12 +954,12 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @return owner_     The owner of the request
      * @return recipient_ The address to receive the assets when the request is filled
      * @return timestamp_ The timestamp of the request [unix epoch time]
-     * @return shares_    The unfilled savings shares of the request [savings share units]
+     * @return assets_    The unfilled assets of the request [asset units]
      */
     function getPendingDepositCancellationRequest(uint256 requestId_)
         external
         view
-        returns (address owner_, address recipient_, uint64 timestamp_, uint256 shares_);
+        returns (address owner_, address recipient_, uint64 timestamp_, uint256 assets_);
 
     /**
      * @notice Returns the deposit cancellation requests from the first unprocessed pending request
@@ -1057,10 +1046,15 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     function availableCapacity() external view returns (uint256);
 
     /**
-     * @notice Returns the amount of assets the vault can currently withdraw from the savings vault.
-     *         [asset units]
+     * @notice Returns the assets the vault holds, excluding claimable ones. [asset units]
      */
     function availableLiquidAssets() external view returns (uint256);
+
+    /**
+     * @notice Returns the reference value of the assets the vault holds, excluding claimable ones.
+     *         [reference units]
+     */
+    function availableLiquidReferenceValue() external view returns (uint256);
 
     /**
      * @notice Returns the assets of `account_` that are claimable via `claim()`.
@@ -1087,10 +1081,42 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     function convertToShares(uint256 assets_) external view returns (uint256 shares_);
 
     /**
+     * @notice Returns the reference value of `shares_`, calculated up to the current block
+     *         timestamp.
+     * @dev    Rounds down.
+     * @param  shares_         The amount of shares [share units]
+     * @return referenceValue_ The reference value of the shares [reference units]
+     */
+    function convertSharesToReferenceValue(uint256 shares_)
+        external
+        view
+        returns (uint256 referenceValue_);
+
+    /**
+     * @notice Returns the amount of shares worth `referenceValue_`, calculated up to the current
+     *         block timestamp.
+     * @dev    Rounds down.
+     * @param  referenceValue_ The reference value [reference units]
+     * @return shares_         The amount of shares [share units]
+     */
+    function convertReferenceValueToShares(uint256 referenceValue_)
+        external
+        view
+        returns (uint256 shares_);
+
+    /**
      * @notice Returns the current rate accumulator calculated up to the current block timestamp.
      *         [ray]
      */
     function nowChi() external view returns (uint192);
+
+    /**
+     * @notice Returns the reference value of the shares of `owner_`, calculated up to the current
+     *         block timestamp.
+     * @param  owner_          The address of the share owner
+     * @return referenceValue_ The reference value of the shares [reference units]
+     */
+    function referenceValueOf(address owner_) external view returns (uint256 referenceValue_);
 
     /**
      * @notice Returns whether the contract implements the interface `interfaceId`.
@@ -1104,5 +1130,11 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *         timestamp. [asset units]
      */
     function totalAssets() external view returns (uint256);
+
+    /**
+     * @notice Returns the reference value of the total supply of shares, calculated up to the
+     *         current block timestamp. [reference units]
+     */
+    function totalReferenceValue() external view returns (uint256);
 
 }

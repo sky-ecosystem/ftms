@@ -35,6 +35,7 @@ contract InitializeTests is TestBase {
                     ISparkPrimeVault.initialize,
                     (
                         address(spUSDC),
+                        address(spUSDC),
                         "Spark Prime USDC",
                         "spPrime",
                         admin,
@@ -68,12 +69,12 @@ contract InitializeTests is TestBase {
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        spPrime.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        spPrime.initialize(address(spUSDC), address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        implementation.initialize(address(spUSDC), address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
     }
 
     function test_initialize() external {
@@ -101,11 +102,11 @@ contract InitializeTests is TestBase {
 
         assertEq(address(vault), expectedProxy);
 
-        assertEq(vault.savings(),  address(spUSDC));
-        assertEq(vault.asset(),    address(usdc));
-        assertEq(vault.name(),     "Spark Prime USDC");
-        assertEq(vault.symbol(),   "spPrime");
-        assertEq(vault.decimals(), 6);
+        assertEq(vault.asset(),           address(spUSDC));
+        assertEq(vault.referenceOracle(), address(spUSDC));
+        assertEq(vault.name(),            "Spark Prime USDC");
+        assertEq(vault.symbol(),          "spPrime");
+        assertEq(vault.decimals(),        6);
 
         assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, admin));
 
@@ -118,8 +119,6 @@ contract InitializeTests is TestBase {
         assertEq(vault.minDeposit(),             MINIMUM_DEPOSIT);
         assertEq(vault.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
         assertEq(vault.minRedeem(),              MINIMUM_REDEEM);
-
-        assertEq(usdc.allowance(address(vault), address(spUSDC)), type(uint256).max);
     }
 
 }
