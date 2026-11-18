@@ -11,13 +11,15 @@ Each share's value grows at the Vault Savings Rate (VSR), a per-second compoundi
 - **Reference oracle set.** For example, the asset is `spUSDC` and the oracle is `spUSDC` itself. `spUSDC` is an ERC-4626 savings vault whose shares grow in value against USDC. The reference unit is then USDC. Each share is worth a USDC amount that grows at the VSR, and a redemption pays that amount in spUSDC at spUSDC's current price. spUSDC's own yield is therefore part of the VSR, not added on top of it.
 - **No reference oracle** (`address(0)`). The reference unit is the asset itself, so each share is worth an amount of the asset that grows at the VSR. If the asset earns yield on its own (e.g. `spUSDC`), holders get that yield plus the VSR. With plain USDC as the asset, the VSR is simply a USDC rate.
 
+Why the reference unit matters: if the asset earns its own yield (e.g. `spUSDC`) and vault share values grow at the VSR in units of the asset itself, the VSR comes on top of that yield, so paying holders less than the asset earns would need a VSR below 0%. Allowing a VSR below 0% would let `OPERATOR_ROLE` make each share redeem for less, draining value from holders. Instead of allowing that, vault share values can grow at the VSR in the unit the asset's own yield accrues in (e.g. USDC for `spUSDC`). The VSR is then the holders' whole return in that unit, so it can be set below the asset's yield.
+
 Shares grow at the VSR whether or not the deployed capital earns it.
 
 `spPRIME` takes USDC and deposits it into a savings vault (`spUSDC`) itself. This vault never deposits into another vault. Setting `asset = spUSDC` and `referenceOracle = spUSDC` gives a setup similar to `spPRIME`, except that users deposit and receive `spUSDC` rather than USDC. Behaviour not described below is the same as in `spPRIME`.
 
 ## Differences from `spPRIME`
 
-- **One token in and out.** Users deposit and receive `asset`. The vault never deposits into, or redeems from, another vault.
+- **One token, any ERC-20.** Users deposit and receive `asset`, which the vault holds directly rather than depositing it into another vault. The asset can be a plain token like USDC or USDT, or a savings vault share like `spUSDC`. `spPRIME` takes deposits and pays redemptions in a savings vault's underlying token (e.g. USDC), but must hold its liquidity in that ERC-4626 vault (e.g. `spUSDC`).
 - **Reference oracle.** Share value and the VSR accrue in the reference unit. `referenceOracle`, set once at initialization, converts between asset amounts and reference values.
 - **Units.**
   - Amounts users pass in or receive, and the minimum deposit and cancellation amounts, are in asset units. So are the ERC-4626-style views such as `convertToAssets` and `totalAssets`.
