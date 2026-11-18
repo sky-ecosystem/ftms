@@ -48,12 +48,18 @@ Queues, capacity, the redeem fee, pausing, roles and configuration work as in `s
 **Reference oracle** (if set)
 
 - **Its price must not be manipulable,** since deposits and redemptions are priced with it.
-- **A price that lags known losses can be exploited.** Holders of the asset can deposit it at the old price before a loss shows up, then redeem for more of the asset afterwards, moving up to all of their loss onto the vault (how much depends on whether the loss is passed to holders with `impair`, and on how much of the vault's backing is still the asset). If the asset's price can't drop quickly (e.g. `spUSDC`, which would require a governance upgrade to book any loss), the vault needs to be paused as soon as a loss is expected, which blocks such deposits until the loss is priced in.
+- **A price that lags known losses can be exploited,** see [Asset losses](#asset-losses).
 - **Both conversions use the same price and round down,** as the ERC-4626 standard requires. Otherwise a payout could exceed what the vault holds and break its accounting.
 - **Its shares and assets have the same decimals** (like spUSDC and USDC, both 6).
 - **It must not revert.** If it does, deposits and redemptions can't be processed. Deposit cancellations still work.
 
+## Asset losses
+
 If the asset loses value against the reference unit, share values don't change, so redemptions pay out more of the asset than was deposited, unless the loss is passed to holders with `impair`.
+
+If the oracle's price lags a known loss, holders of the asset can deposit it at the old price before the loss shows up, then redeem for more of the asset afterwards. This moves up to all of their loss onto the vault (how much depends on whether the loss is passed to holders with `impair`, and on how much of the vault's backing is still the asset).
+
+If the asset's price can't drop quickly (e.g. `spUSDC`, which would require a governance upgrade to book any loss), deposits need to be stopped as soon as a loss is expected, by setting the capacity to 0 or pausing the vault, until the loss is priced in.
 
 ## TODO
 
