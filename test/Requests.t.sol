@@ -33,9 +33,9 @@ contract RequestDepositCancellationTests is TestBase {
 
         vaultState.rho                    = vm.getBlockTimestamp();
         vaultState.chi                    = 1.049999999999999999961070145e27;
-        vaultState.totalAssets            = 0;
+        vaultState.totalValue             = 0;
         vaultState.availableCapacityValue = 0;
-        vaultState.availableLiquidAssets  = 1_000_000e6 - 1;
+        vaultState.availableLiquidValue   = 1_000_000e6 - 1;
 
         vaultState.depositRequests.pendingShareValue = 1_000_000e6 - 1;
         vaultState.depositRequests.length            = 1;
@@ -130,7 +130,7 @@ contract RequestDepositCancellationTests is TestBase {
     }
 
     function test_requestDepositCancellation_savingsSharesTooHighBoundary() external {
-        vm.expectRevert(ISparkPrimeVault.SavingsSharesTooHigh.selector);
+        vm.expectRevert(ISparkPrimeVault.AssetsTooHigh.selector);
         vm.prank(user);
         spPrime.requestDepositCancellation(depositRequestId, user, requestShares + 1);
 

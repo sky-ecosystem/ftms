@@ -122,7 +122,7 @@ contract RoleBasedTests is TestBase {
         _requestDeposit(user, 1_000_000e6);
         _pause();
 
-        assertEq(spPrime.totalAssets(), 1_000_000e6 - 1);  // Rounding
+        assertEq(spPrime.totalReferenceValue(), 1_000_000e6 - 1);  // Rounding
 
         vm.expectRevert(ISparkPrimeVault.ImpairmentTooLarge.selector);
         vm.prank(lossManager);
@@ -140,19 +140,19 @@ contract RoleBasedTests is TestBase {
 
         skip(365 days);
 
-        uint256 assetsBefore = spPrime.totalAssets();
+        uint256 valueBefore  = spPrime.totalReferenceValue();
         uint256 supply       = spPrime.totalSupply();
 
         // Drip is pending, impair must settle it before writing chi down.
         assertEq(spPrime.chi(),    RAY);
         assertEq(spPrime.nowChi(), 1.049999999999999999961070145e27);  // ~5% APY
-        assertEq(assetsBefore,     1_050_000e6 - 2);  // 5% yield accrued
+        assertEq(valueBefore,      1_050_000e6 - 2);  // 5% yield accrued
         assertEq(supply,           1_000_000e6 - 1);
 
-        assertEq(spPrime.rho(),          vm.getBlockTimestamp() - 365 days);
-        assertEq(spPrime.assetsOf(user), assetsBefore);
+        assertEq(spPrime.rho(),                  vm.getBlockTimestamp() - 365 days);
+        assertEq(spPrime.referenceValueOf(user), valueBefore);
 
-        uint192 expectedChi = uint192(((assetsBefore - impairment) * RAY) / supply);
+        uint192 expectedChi = uint192(((valueBefore  - impairment) * RAY) / supply);
 
         assertEq(expectedChi, 0.949999999998949999999998949e27);
 
@@ -165,13 +165,13 @@ contract RoleBasedTests is TestBase {
         vm.prank(lossManager);
         spPrime.impair(impairment);
 
-        assertEq(spPrime.chi(),          expectedChi);
-        assertEq(spPrime.nowChi(),       expectedChi);
-        assertEq(spPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(spPrime.totalAssets(),  950_000e6 - 3);  // 100k impairment incurred
-        assertEq(spPrime.assetsOf(user), 950_000e6 - 3);  // 100k impairment incurred
+        assertEq(spPrime.chi(),                  expectedChi);
+        assertEq(spPrime.nowChi(),               expectedChi);
+        assertEq(spPrime.rho(),                  vm.getBlockTimestamp());
+        assertEq(spPrime.totalReferenceValue(),  950_000e6 - 3);  // 100k impairment incurred
+        assertEq(spPrime.referenceValueOf(user), 950_000e6 - 3);  // 100k impairment incurred
 
-        assertEq(spPrime.totalAssets(), assetsBefore - impairment - 1);
+        assertEq(spPrime.totalReferenceValue(), valueBefore  - impairment - 1);
 
         // Accrual continues from new chi.
 
@@ -180,11 +180,11 @@ contract RoleBasedTests is TestBase {
         spPrime.drip();
 
         // 5% APY over one year, compounding on the new chi
-        assertEq(spPrime.chi(),          0.997499999998897499963015534e27);
-        assertEq(spPrime.nowChi(),       0.997499999998897499963015534e27);
-        assertEq(spPrime.rho(),          vm.getBlockTimestamp());
-        assertEq(spPrime.totalAssets(),  997_500e6 - 3);  // 5% yield on 950k
-        assertEq(spPrime.assetsOf(user), 997_500e6 - 3);  // 5% yield on 950k
+        assertEq(spPrime.chi(),                  0.997499999998897499963015534e27);
+        assertEq(spPrime.nowChi(),               0.997499999998897499963015534e27);
+        assertEq(spPrime.rho(),                  vm.getBlockTimestamp());
+        assertEq(spPrime.totalReferenceValue(),  997_500e6 - 3);  // 5% yield on 950k
+        assertEq(spPrime.referenceValueOf(user), 997_500e6 - 3);  // 5% yield on 950k
 
         // Redeem reflects loss.
 
@@ -192,13 +192,13 @@ contract RoleBasedTests is TestBase {
 
         assertEq(spPrime.balanceOf(user),       supply);
         assertEq(spPrime.pendingRedeemShares(), 0);
-        assertEq(usdc.balanceOf(user),          0);
+        assertEq(spUSDC.assetsOf(user),         0);
 
         _requestRedeem(user, supply);
 
         assertEq(spPrime.balanceOf(user),       0);
         assertEq(spPrime.pendingRedeemShares(), supply);
-        assertEq(usdc.balanceOf(user),          0);
+        assertEq(spUSDC.assetsOf(user),         0);
 
         _processPendingRedeems();
 
@@ -207,7 +207,7 @@ contract RoleBasedTests is TestBase {
         assertEq(spPrime.pendingRedeemShares(), 0);
         assertEq(spPrime.totalSupply(),         0);
         assertEq(spPrime.totalAssets(),         0);
-        assertEq(usdc.balanceOf(user),          997_500e6 - 4);
+        assertEq(spUSDC.assetsOf(user),         997_500e6 - 4);
     }
 
     function test_impair_twoUsers() external {
@@ -222,14 +222,36 @@ contract RoleBasedTests is TestBase {
 
         skip(365 days);
 
-        assertEq(spPrime.assetsOf(user1), 1_050_000e6 - 2);
-        assertEq(spPrime.assetsOf(user2), 2_100_000e6 - 2);
+        assertEq(spPrime.referenceValueOf(user1), 1_050_000e6 - 2);
+        assertEq(spPrime.referenceValueOf(user2), 2_100_000e6 - 2);
 
         vm.prank(lossManager);
         spPrime.impair(impairment);
 
-        assertEq(spPrime.assetsOf(user1), 1_000_000e6 - 2);
-        assertEq(spPrime.assetsOf(user2), 2_000_000e6 - 2);
+        assertEq(spPrime.referenceValueOf(user1), 1_000_000e6 - 2);
+        assertEq(spPrime.referenceValueOf(user2), 2_000_000e6 - 2);
+    }
+
+    function test_impair_referenceValue() external {
+        _requestDeposit(user, 1_000_000e6);  // Filled instantly
+        _pause();
+
+        skip(365 days);
+
+        uint256 valueBefore  = spPrime.totalReferenceValue();
+        uint256 assetsBefore = spPrime.totalAssets();
+
+        vm.prank(lossManager);
+        spPrime.impair(100_000e6);
+
+        // The loss is 100k USDC, whatever spUSDC is worth.
+        assertEq(spPrime.totalReferenceValue(), valueBefore - 100_000e6 - 1);
+
+        assertApproxEqAbs(
+            assetsBefore - spPrime.totalAssets(),
+            spUSDC.convertToShares(100_000e6),
+            2
+        );
     }
 
     /**********************************************************************************************/
@@ -585,7 +607,7 @@ contract RoleBasedTests is TestBase {
 
         uint256 vaultBalance = spUSDC.balanceOf(address(spPrime));
 
-        vm.expectRevert(ISparkPrimeVault.InsufficientShares.selector);
+        vm.expectRevert(ISparkPrimeVault.InsufficientAssets.selector);
         vm.prank(taker);
         spPrime.take(vaultBalance + 1);
 
@@ -609,6 +631,28 @@ contract RoleBasedTests is TestBase {
 
         assertEq(spUSDC.balanceOf(address(spPrime)), 0);
         assertEq(spUSDC.balanceOf(taker),            expectedSavingsShares);
+    }
+
+    function test_take_returnCapitalByTransfer() external {
+        uint256 assets = spUSDC.convertToShares(1_000_000e6);
+
+        _requestDeposit(user, 1_000_000e6);  // Filled instantly
+
+        _take(assets);
+
+        assertEq(spPrime.availableLiquidAssets(), 0);
+
+        // The taker returns capital by sending assets straight to the vault.
+        vm.prank(taker);
+        assertTrue(spUSDC.transfer(address(spPrime), assets));
+
+        assertEq(spPrime.availableLiquidAssets(), assets);
+
+        _requestRedeem(user, spPrime.balanceOf(user));
+        _processPendingRedeems();
+
+        assertEq(spPrime.totalSupply(), 0);
+        assertEq(spUSDC.assetsOf(user), 1_000_000e6 - 2);
     }
 
     /**********************************************************************************************/
