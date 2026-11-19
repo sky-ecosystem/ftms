@@ -426,6 +426,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      * @param  referenceOracle_        The address converting assets to and from their reference
      *                                 value, which `chi` is denominated in. `address(0)` values
      *                                 one asset unit at one reference unit
+     * @param  instantFill_            Whether a deposit request with no unfilled requests ahead
+     *                                 of it is filled immediately
      * @param  name_                   The name of the vault token
      * @param  symbol_                 The symbol of the vault token
      * @param  admin_                  The address to be granted the admin role
@@ -439,6 +441,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     function initialize(
         address        asset_,
         address        referenceOracle_,
+        bool           instantFill_,
         string  memory name_,
         string  memory symbol_,
         address        admin_,
@@ -632,9 +635,10 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *         converted into shares.
      * @dev    Can only be called while the vault is not paused. `assets_` must be at least
      *         `minDeposit` and `recipient_` must be neither `address(0)` nor the vault. Updates the
-     *         rate accumulator (via `drip()`) before depositing. If no unfilled deposit requests
-     *         are queued ahead, the request is filled immediately, up to the available capacity, in
-     *         which case the returned request may already be fully filled.
+     *         rate accumulator (via `drip()`) before depositing. If `instantFill` is enabled and no
+     *         unfilled deposit requests are queued ahead, the request is filled immediately, up to
+     *         the available capacity, in which case the returned request may already be fully
+     *         filled. Otherwise it waits for `processPendingDeposits`.
      * @param  assets_    The amount of assets to deposit [asset units]
      * @param  recipient_ The address to receive the minted shares
      * @param  referral_  The referral ID (16-bit) for tracking
@@ -815,6 +819,10 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /// @notice Returns the address converting assets to and from their reference value, which
     ///         `chi` is denominated in. `address(0)` values one asset unit at one reference unit.
     function referenceOracle() external view returns (address);
+
+    /// @notice Returns whether a deposit request with no unfilled requests ahead of it is filled
+    ///         immediately. Set at initialization.
+    function instantFill() external view returns (bool);
 
     /// @notice Returns whether the vault is paused.
     function paused() external view returns (bool);

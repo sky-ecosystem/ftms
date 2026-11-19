@@ -21,6 +21,7 @@ Shares grow at the VSR whether or not the deployed capital earns it.
 
 - **One token, any ERC-20.** Users deposit and receive `asset`, which the vault holds directly rather than depositing it into another vault. The asset can be a plain token like USDC or USDT, or a savings vault share like `spUSDC`. `spPRIME` takes deposits and pays redemptions in a savings vault's underlying token (e.g. USDC), but must hold its liquidity in that ERC-4626 vault (e.g. `spUSDC`).
 - **Reference oracle.** Share value and the VSR accrue in the reference unit. `referenceOracle`, set once at initialization, converts between asset amounts and reference values.
+- **Instant fill can be disabled.** `instantFill`, set once at initialization, decides whether a deposit request with nothing queued ahead of it is filled immediately. If disabled, every deposit waits for `OPERATOR_ROLE` to fill it, see [Asset losses](#asset-losses).
 - **Units.**
   - Amounts users pass in or receive, and the minimum deposit and cancellation amounts, are in asset units. So are the ERC-4626-style views such as `convertToAssets` and `totalAssets`.
   - Each of those views has a reference-value counterpart, e.g. `totalReferenceValue`.
@@ -33,7 +34,7 @@ Shares grow at the VSR whether or not the deployed capital earns it.
 Queues, capacity, the redeem fee, pausing, roles and configuration work as in `spPRIME`. In outline:
 
 - **Share value.** A share's reference value grows at the VSR. Its asset value is that reference value converted through the oracle at the current rate.
-- **Deposits.** Users queue an amount of the asset. When the request is filled, the amount is converted to shares at its reference value at that time. A request is filled immediately if nothing is queued ahead of it and there is capacity. Until then, the depositor can cancel and get the same number of tokens back.
+- **Deposits.** Users queue an amount of the asset. When the request is filled, the amount is converted to shares at its reference value at that time. A request is filled immediately if `instantFill` is enabled, nothing is queued ahead of it and there is capacity. Until then, the depositor can cancel and get the same number of tokens back.
 - **Redemptions.** Users queue shares, and a redeem fee is burned from them upfront. When the request is filled, they receive the shares' asset value, rounded down.
 - **Capital.** The taker can take any of the asset the vault holds, including tokens backing pending deposits and cancellations, but not what the vault owes to claimants. It returns capital by transferring the asset back. Redemptions and cancellation payouts wait until there is enough.
 - **Failed payouts.** A payout that can't be delivered is credited to its recipient as claimable, and paid out later with `claim`.
@@ -59,7 +60,9 @@ If the asset loses value against the reference unit, share values don't change, 
 
 If the oracle's price lags a known loss, holders of the asset can deposit it at the old price before the loss shows up, then redeem for more of the asset afterwards. This moves up to all of their loss onto the vault (how much depends on whether the loss is passed to holders with `impair`, and on how much of the vault's backing is still the asset).
 
-If the asset's price can't drop quickly (e.g. `spUSDC`, which would require a governance upgrade to book any loss), deposits need to be stopped as soon as a loss is expected, by setting the capacity to 0 or pausing the vault, until the loss is priced in.
+Whether this needs to be prevented depends on whether the asset is trusted never to lose value against the reference unit (e.g. if its losses are assumed to be covered). If it is, `instantFill` can be enabled. If not, deposits need to be stopped as soon as an event that could make the asset lose value happens. This requires both disabling `instantFill` and having `OPERATOR_ROLE` wait long enough after each deposit request before filling it, so there is time to stop it from filling once such an event happens.
+
+Without a reference oracle, the asset can never lose value against the reference unit, since the reference unit is then the asset itself.
 
 ## TODO
 

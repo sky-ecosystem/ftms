@@ -104,6 +104,10 @@ abstract contract TestBase is Test {
 
     VaultState internal vaultState;
 
+    function _instantFill() internal virtual pure returns (bool) {
+        return true;
+    }
+
     function setUp() public virtual {
         vm.createSelectFork(getChain("mainnet").rpcUrl, _getBlock());
 
@@ -115,6 +119,7 @@ abstract contract TestBase is Test {
                     (
                         address(spUSDC),
                         address(spUSDC),
+                        _instantFill(),
                         "Spark Prime USDC",
                         "spPrime",
                         admin,

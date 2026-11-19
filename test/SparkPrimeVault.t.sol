@@ -25,6 +25,39 @@ abstract contract SparkPrimeVaultTests is TestBase {
 
 }
 
+contract RequestDepositInstantFillDisabledTests is SparkPrimeVaultTests {
+
+    function _instantFill() internal override pure returns (bool) {
+        return false;
+    }
+
+    function test_requestDeposit_instantFillDisabled() external {
+        assertEq(spPrime.instantFill(), false);
+
+        uint256 savingsShares = _dealSavingsShares(user, 1_000_000e6);
+
+        vm.prank(user);
+        uint256 requestId = spPrime.requestDeposit(savingsShares, user, REFERRAL);
+
+        // Nothing is queued ahead and there is capacity, but the request waits in the queue.
+        assertEq(requestId,                       0);
+        assertEq(spPrime.balanceOf(user),         0);
+        assertEq(spPrime.totalSupply(),           0);
+        assertEq(spPrime.pendingDepositAssets(),  savingsShares);
+        assertEq(spPrime.processedDepositCount(), 0);
+
+        _assertDepositRequest(0, user, user, 1_000_000e6 - 1);
+
+        _processPendingDeposits();
+
+        assertEq(spPrime.pendingDepositAssets(),  0);
+        assertEq(spPrime.processedDepositCount(), 1);
+        assertEq(spPrime.balanceOf(user),         spPrime.totalSupply());
+        assertGt(spPrime.balanceOf(user),         0);
+    }
+
+}
+
 contract RequestDepositTests is SparkPrimeVaultTests {
 
     // Failure tests

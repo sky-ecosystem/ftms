@@ -104,6 +104,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     address public override referenceOracle;
 
     bool public override paused;
+    bool public override instantFill;
 
     uint8 public override decimals;
 
@@ -161,6 +162,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function initialize(
         address        asset_,
         address        referenceOracle_,
+        bool           instantFill_,
         string  memory name_,
         string  memory symbol_,
         address        admin,
@@ -172,6 +174,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     {
         asset           = asset_;
         referenceOracle = referenceOracle_;
+        instantFill     = instantFill_;
         name            = name_;
         symbol          = symbol_;
         decimals        = IERC20Like(asset_).decimals();
@@ -364,9 +367,10 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         emit Referral(referral_, requestId_, msg.sender, recipient_, assets_);
         emit DepositRequest(requestId_, msg.sender, recipient_, assets_);
 
+        // Fill immediately if `instantFill` is enabled and no unfilled request is ahead.
         // If `pendingDepositAssets == assets_` then the only deposit requests that can exist ahead
         // of `requestId_` are empty/cancelled.
-        if (pendingDepositAssets == assets_) {
+        if (instantFill && pendingDepositAssets == assets_) {
             processedDepositCount = requestId_;
             _processPendingDeposits(assets_, 1);
         }

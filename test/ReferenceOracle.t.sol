@@ -45,6 +45,7 @@ contract ReferenceOracleTests is TestBase {
                     (
                         address(spUSDC),
                         address(0),
+                        true,
                         "Spark Prime spUSDC",
                         "spPrime",
                         admin,
