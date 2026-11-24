@@ -3,9 +3,9 @@ pragma solidity ^0.8.34;
 
 import { Test, stdError } from "../lib/forge-std/src/Test.sol";
 
-import { SparkPrimeVault } from "../src/SparkPrimeVault.sol";
+import { FTMS } from "../src/FTMS.sol";
 
-contract SparkPrimeVaultHarness is SparkPrimeVault {
+contract FTMSHarness is FTMS {
 
     function divUp(uint256 x, uint256 y) public pure returns (uint256) {
         return super._divUp(x, y);
@@ -20,10 +20,10 @@ contract SparkPrimeVaultHarness is SparkPrimeVault {
 contract MathTestBase is Test {
 
     // NOTE: Don't need to use upgradability pattern because of pure functions
-    SparkPrimeVaultHarness harness;
+    FTMSHarness harness;
 
     function setUp() public {
-        harness = new SparkPrimeVaultHarness();
+        harness = new FTMSHarness();
     }
 
 }

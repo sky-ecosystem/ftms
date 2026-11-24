@@ -7,8 +7,8 @@ import { ERC1967Proxy } from "../lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol
 
 import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
-import { SparkPrimeVault }  from "../src/SparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
+import { FTMS }  from "../src/FTMS.sol";
 
 interface IERC20Like {
 
@@ -100,7 +100,7 @@ abstract contract TestBase is Test {
     IERC20Like      internal usdc   = IERC20Like(Ethereum.USDC);
     ISparkVaultLike internal spUSDC = ISparkVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDC);
 
-    SparkPrimeVault internal spPrime;
+    FTMS internal spPrime;
 
     VaultState internal vaultState;
 
@@ -111,17 +111,17 @@ abstract contract TestBase is Test {
     function setUp() public virtual {
         vm.createSelectFork(getChain("mainnet").rpcUrl, _getBlock());
 
-        spPrime = SparkPrimeVault(
+        spPrime = FTMS(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new FTMS()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IFTMS.initialize,
                     (
                         address(spUSDC),
                         address(spUSDC),
                         _instantFill(),
-                        "Spark Prime USDC",
-                        "spPrime",
+                        "FTMS USDC",
+                        "ftmsUSDC",
                         admin,
                         MINIMUM_DEPOSIT,
                         MINIMUM_DEPOSIT_CANCELLATION,
@@ -504,7 +504,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue,
@@ -538,7 +538,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue
@@ -601,7 +601,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositCancellationRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue,
@@ -635,7 +635,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositCancellationRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue
@@ -694,7 +694,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertRedeemRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         shareValue,
@@ -728,7 +728,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertRedeemRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         shareValue
@@ -736,7 +736,7 @@ abstract contract TestBase is Test {
         _assertRedeemRequest(request, owner, recipient, shareValue, vm.getBlockTimestamp());
     }
 
-    function _assertEmptyRequest(ISparkPrimeVault.Request memory request) internal pure {
+    function _assertEmptyRequest(IFTMS.Request memory request) internal pure {
         assertEq(
             request.owner,
             address(0),

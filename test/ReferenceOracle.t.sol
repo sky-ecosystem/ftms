@@ -5,9 +5,9 @@ import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
 
 import { IERC20 } from "../lib/oz/contracts/token/ERC20/IERC20.sol";
 
-import { ERC1967Proxy, ISparkVaultLike, TestBase, SparkPrimeVault } from "./TestBase.t.sol";
+import { ERC1967Proxy, ISparkVaultLike, TestBase, FTMS } from "./TestBase.t.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
 
 contract ReferenceOracleTests is TestBase {
 
@@ -41,17 +41,17 @@ contract ReferenceOracleTests is TestBase {
     }
 
     function test_unsetReferenceOracle() external {
-        SparkPrimeVault vault = SparkPrimeVault(
+        FTMS vault = FTMS(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new FTMS()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IFTMS.initialize,
                     (
                         address(spUSDC),
                         address(0),
                         true,
-                        "Spark Prime spUSDC",
-                        "spPrime",
+                        "FTMS spUSDC",
+                        "ftmsSpUSDC",
                         admin,
                         MINIMUM_DEPOSIT,
                         MINIMUM_DEPOSIT_CANCELLATION,
@@ -151,16 +151,16 @@ contract NoReturnValueAssetTests is TestBase {
 
     address internal ali = makeAddr("ali");
 
-    SparkPrimeVault internal vault;
+    FTMS internal vault;
 
     function setUp() public override {
         super.setUp();
 
-        vault = SparkPrimeVault(
+        vault = FTMS(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new FTMS()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IFTMS.initialize,
                     (address(usdt), address(0), true, "FTMS USDT", "ftmsUSDT", admin, 1, 1, 1)
                 )
             ))

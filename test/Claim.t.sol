@@ -5,7 +5,7 @@ import { IERC20 } from "../lib/oz/contracts/token/ERC20/IERC20.sol";
 
 import { TestBase } from "./TestBase.t.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
 
 contract ClaimTests is TestBase {
 
@@ -18,7 +18,7 @@ contract ClaimTests is TestBase {
     }
 
     function test_claim_nothingToClaim() external {
-        vm.expectRevert(ISparkPrimeVault.NothingToClaim.selector);
+        vm.expectRevert(IFTMS.NothingToClaim.selector);
         spPrime.claim(user);
     }
 
@@ -48,7 +48,7 @@ contract ClaimTests is TestBase {
         deal(address(spUSDC), address(spPrime), spUSDC.convertToShares(1_000_000e6));
 
         vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, spUSDC.convertToShares(1_000_000e6));
+        emit IFTMS.Claim(user, spUSDC.convertToShares(1_000_000e6));
 
         spPrime.claim(user);
     }
@@ -117,7 +117,7 @@ contract ClaimTests is TestBase {
         );
 
         vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.ClaimableAssetsIncreased(user, spUSDC.convertToShares(1_000_000e6));
+        emit IFTMS.ClaimableAssetsIncreased(user, spUSDC.convertToShares(1_000_000e6));
 
         _processPendingDepositCancellations(1);
 
@@ -141,7 +141,7 @@ contract ClaimTests is TestBase {
         vm.clearMockedCalls();
 
         vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, spUSDC.convertToShares(1_000_000e6));
+        emit IFTMS.Claim(user, spUSDC.convertToShares(1_000_000e6));
 
         spPrime.claim(user);
 
@@ -201,7 +201,7 @@ contract ClaimTests is TestBase {
         );
 
         vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.ClaimableAssetsIncreased(user, spUSDC.convertToShares(500_000e6));
+        emit IFTMS.ClaimableAssetsIncreased(user, spUSDC.convertToShares(500_000e6));
 
         _processPendingRedeems(1);
 
@@ -227,7 +227,7 @@ contract ClaimTests is TestBase {
         vm.clearMockedCalls();
 
         vm.expectEmit(address(spPrime));
-        emit ISparkPrimeVault.Claim(user, spUSDC.convertToShares(500_000e6));
+        emit IFTMS.Claim(user, spUSDC.convertToShares(500_000e6));
 
         spPrime.claim(user);
 
@@ -270,7 +270,7 @@ contract ClaimTests is TestBase {
         // Claimable assets are neither liquidity nor takeable.
         assertEq(spPrime.availableLiquidAssets(), 0);
 
-        vm.expectRevert(ISparkPrimeVault.InsufficientAssets.selector);
+        vm.expectRevert(IFTMS.InsufficientAssets.selector);
         _take(1);
 
         // Only the new deposit can be taken or used for cancellations.
@@ -281,7 +281,7 @@ contract ClaimTests is TestBase {
 
         assertEq(spPrime.availableLiquidAssets(), otherAssets);
 
-        vm.expectRevert(ISparkPrimeVault.InsufficientAssets.selector);
+        vm.expectRevert(IFTMS.InsufficientAssets.selector);
         _take(otherAssets + 1);
 
         _take(otherAssets);

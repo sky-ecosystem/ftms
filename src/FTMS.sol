@@ -9,7 +9,7 @@ import { SafeERC20, IERC20 as IERC20OZ } from "../lib/oz/contracts/token/ERC20/u
 import { AccessControlEnumerableUpgradeable }
     from "../lib/oz-upgradeable/contracts/access/extensions/AccessControlEnumerableUpgradeable.sol";
 
-import { ISparkPrimeVault } from "./ISparkPrimeVault.sol";
+import { IFTMS } from "./IFTMS.sol";
 
 interface IERC20Like {
 
@@ -39,33 +39,19 @@ interface IReferenceOracleLike {
 
 /*
 
-  ███████╗██████╗  █████╗ ██████╗ ██╗  ██╗
-  ██╔════╝██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝
-  ███████╗██████╔╝███████║██████╔╝█████╔╝
-  ╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔═██╗
-  ███████║██║     ██║  ██║██║  ██║██║  ██╗
-  ╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝
-
-  ██████╗ ██████╗ ██╗███╗   ███╗███████╗
-  ██╔══██╗██╔══██╗██║████╗ ████║██╔════╝
-  ██████╔╝██████╔╝██║██╔████╔██║█████╗
-  ██╔═══╝ ██╔══██╗██║██║╚██╔╝██║██╔══╝
-  ██║     ██║  ██║██║██║ ╚═╝ ██║███████╗
-  ╚═╝     ╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚══════╝
-
-  ██╗   ██╗ █████╗ ██╗   ██╗██╗  ████████╗
-  ██║   ██║██╔══██╗██║   ██║██║  ╚══██╔══╝
-  ██║   ██║███████║██║   ██║██║     ██║
-  ╚██╗ ██╔╝██╔══██║██║   ██║██║     ██║
-   ╚████╔╝ ██║  ██║╚██████╔╝███████╗██║
-    ╚═══╝  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝
+  ███████╗████████╗███╗   ███╗███████╗
+  ██╔════╝╚══██╔══╝████╗ ████║██╔════╝
+  █████╗     ██║   ██╔████╔██║███████╗
+  ██╔══╝     ██║   ██║╚██╔╝██║╚════██║
+  ██║        ██║   ██║ ╚═╝ ██║███████║
+  ╚═╝        ╚═╝   ╚═╝     ╚═╝╚══════╝
 
 */
 
 /// @dev If the inheritance is updated, the functions in `initialize` must be updated as well.
 ///      Last updated for: `Initializable, UUPSUpgradeable, AccessControlEnumerableUpgradeable,
-///      ISparkPrimeVault`.
-contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable, ISparkPrimeVault {
+///      IFTMS`.
+contract FTMS is AccessControlEnumerableUpgradeable, UUPSUpgradeable, IFTMS {
 
     /**********************************************************************************************/
     /*** Constants                                                                              ***/
@@ -526,7 +512,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     }
 
     function transfer(address to_, uint256 amount_) external override returns (bool) {
-        require(to_ != address(0) && to_ != address(this), "SparkPrimeVault/invalid-address");
+        require(to_ != address(0) && to_ != address(this), "FTMS/invalid-address");
 
         _transfer(msg.sender, to_, amount_);
 
@@ -538,7 +524,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         override
         returns (bool)
     {
-        require(to_ != address(0) && to_ != address(this), "SparkPrimeVault/invalid-address");
+        require(to_ != address(0) && to_ != address(this), "FTMS/invalid-address");
 
         _transfer(from_, to_, amount_);
 
@@ -546,7 +532,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
             uint256 allowance_ = allowance[from_][msg.sender];
 
             if (allowance_ != type(uint256).max) {
-                require(allowance_ >= amount_, "SparkPrimeVault/insufficient-allowance");
+                require(allowance_ >= amount_, "FTMS/insufficient-allowance");
 
                 unchecked {
                     allowance[from_][msg.sender] = allowance_ - amount_;
@@ -571,8 +557,8 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
         public
         override
     {
-        require(block.timestamp <= deadline_, "SparkPrimeVault/permit-expired");
-        require(owner_ != address(0),         "SparkPrimeVault/invalid-owner");
+        require(block.timestamp <= deadline_, "FTMS/permit-expired");
+        require(owner_ != address(0),         "FTMS/invalid-owner");
 
         uint256 nonce;
 
@@ -592,7 +578,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
                 ))
             ));
 
-        require(_isValidSignature(owner_, digest, signature_), "SparkPrimeVault/invalid-permit");
+        require(_isValidSignature(owner_, digest, signature_), "FTMS/invalid-permit");
 
         emit Approval(owner_, spender_, allowance[owner_][spender_] = value_);
     }
@@ -857,11 +843,11 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function supportsInterface(bytes4 interfaceId_)
         public
         view
-        override(ISparkPrimeVault, AccessControlEnumerableUpgradeable)
+        override(IFTMS, AccessControlEnumerableUpgradeable)
         returns (bool)
     {
         return
-            interfaceId_ == type(ISparkPrimeVault).interfaceId ||
+            interfaceId_ == type(IFTMS).interfaceId ||
             super.supportsInterface(interfaceId_);
     }
 
@@ -1054,7 +1040,7 @@ contract SparkPrimeVault is AccessControlEnumerableUpgradeable, UUPSUpgradeable,
     function _transfer(address from_, address to_, uint256 amount_) internal {
         uint256 balance_ = balanceOf[from_];
 
-        require(balance_ >= amount_, "SparkPrimeVault/insufficient-balance");
+        require(balance_ >= amount_, "FTMS/insufficient-balance");
 
         // NOTE: Don't need an overflow check here b/c sum of all balances == totalSupply.
         unchecked {

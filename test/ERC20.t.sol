@@ -7,9 +7,9 @@ import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
 
 import { TokenFuzzChecks } from "../lib/token-tests/src/TokenFuzzChecks.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
 
-import { SparkPrimeVault } from "../src/SparkPrimeVault.sol";
+import { FTMS } from "../src/FTMS.sol";
 
 contract ERC20Tests is TokenFuzzChecks {
 
@@ -18,17 +18,17 @@ contract ERC20Tests is TokenFuzzChecks {
     address internal admin    = makeAddr("admin");
     address internal operator = makeAddr("operator");
 
-    SparkPrimeVault internal spPrime;
+    FTMS internal spPrime;
 
     function setUp() public {
         vm.createSelectFork(getChain("mainnet").rpcUrl, _getBlock());
 
-        spPrime = SparkPrimeVault(
+        spPrime = FTMS(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new FTMS()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
-                    (Ethereum.SPARK_VAULT_V2_SPUSDC, Ethereum.SPARK_VAULT_V2_SPUSDC, true, "Spark Prime USDC", "spPrime", admin, 1, 1, 1)
+                    IFTMS.initialize,
+                    (Ethereum.SPARK_VAULT_V2_SPUSDC, Ethereum.SPARK_VAULT_V2_SPUSDC, true, "FTMS USDC", "ftmsUSDC", admin, 1, 1, 1)
                 )
             ))
         );
@@ -44,7 +44,7 @@ contract ERC20Tests is TokenFuzzChecks {
     }
 
     function test_erc20() external {
-        checkBulkERC20(address(spPrime), "SparkPrimeVault", "Spark Prime USDC", "spPrime", "1", 6);
+        checkBulkERC20(address(spPrime), "FTMS", "FTMS USDC", "ftmsUSDC", "1", 6);
     }
 
     function testFuzz_erc20(uint256 amount1, uint256 amount2, uint256 vsr, uint256 warpTime) external {
@@ -60,7 +60,7 @@ contract ERC20Tests is TokenFuzzChecks {
 
         checkBulkERC20Fuzz({
             _token        : address(spPrime),
-            _contractName : "SparkPrimeVault",
+            _contractName : "FTMS",
             from          : makeAddr("from"),
             to            : makeAddr("to"),
             amount1       : amount1,
@@ -72,7 +72,7 @@ contract ERC20Tests is TokenFuzzChecks {
         uint256 privateKey1 = 0x112233445566;
         uint256 privateKey2 = 0xAABBCCDDEEFF;
 
-        checkBulkPermit(address(spPrime), "SparkPrimeVault", privateKey1, privateKey2);
+        checkBulkPermit(address(spPrime), "FTMS", privateKey1, privateKey2);
     }
 
     function testFuzz_permit(
@@ -89,7 +89,7 @@ contract ERC20Tests is TokenFuzzChecks {
 
         checkBulkPermitFuzz({
             _token        : address(spPrime),
-            _contractName : "SparkPrimeVault",
+            _contractName : "FTMS",
             privKey       : privateKey,
             to            : makeAddr("to"),
             amount        : amount,

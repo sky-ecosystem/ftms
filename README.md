@@ -27,7 +27,7 @@ Shares grow at the VSR whether or not the deployed capital earns it.
   - Each of those views has a reference-value counterpart, e.g. `totalReferenceValue`.
   - `impair` takes a reference value.
   - Events report asset amounts, except `Drip` and `Impairment`, which report reference values, and `Deposit`, which also reports the reference value used to price the new shares. Where `spPRIME`'s events reported both a USDC and an spUSDC amount, these report only the asset amount.
-- **Names.** Names that referred to the savings vault (e.g. `pendingDepositSavingsShares`) are renamed to refer to the asset (e.g. `pendingDepositAssets`).
+- **Names.** The contract and its interface are renamed from `SparkPrimeVault` and `ISparkPrimeVault` to `FTMS` and `IFTMS`. Names that referred to the savings vault (e.g. `pendingDepositSavingsShares`) are renamed to refer to the asset (e.g. `pendingDepositAssets`).
 
 ## Mechanics
 
@@ -63,7 +63,3 @@ If the oracle's price lags an expected loss, holders of the asset can deposit it
 Whether this needs to be prevented depends on whether the asset is trusted never to lose value against the reference unit (e.g. if its losses are assumed to be covered). If it is, `instantFill` can be enabled. If not, deposits need to be stopped as soon as an event that could make the asset lose value happens. This requires both disabling `instantFill` and having `OPERATOR_ROLE` wait long enough after each deposit request before filling it, so there is time to stop it from filling once such an event happens.
 
 Without a reference oracle, the asset can never lose value against the reference unit, since the reference unit is then the asset itself.
-
-## TODO
-
-- Rename `SparkPrimeVault` and `ISparkPrimeVault`, kept for now to keep the diff against `spPRIME` small.
