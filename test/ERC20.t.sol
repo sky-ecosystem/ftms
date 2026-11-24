@@ -18,6 +18,7 @@ contract ERC20Tests is TokenFuzzChecks {
     address internal admin    = makeAddr("admin");
     address internal operator = makeAddr("operator");
 
+    // The FTMS vault, named `spPrime` as in `spPRIME`'s tests to keep the diff against them small.
     FTMS internal spPrime;
 
     function setUp() public {

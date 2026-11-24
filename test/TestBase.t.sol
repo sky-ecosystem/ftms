@@ -100,6 +100,7 @@ abstract contract TestBase is Test {
     IERC20Like      internal usdc   = IERC20Like(Ethereum.USDC);
     ISparkVaultLike internal spUSDC = ISparkVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDC);
 
+    // The FTMS vault, named `spPrime` as in `spPRIME`'s tests to keep the diff against them small.
     FTMS internal spPrime;
 
     VaultState internal vaultState;
