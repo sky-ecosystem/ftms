@@ -840,7 +840,7 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
      *         and increases exponentially over time based on the Vault Savings Rate (VSR). The
      *         formula is: `chi = chi_old * (vsr)^(time_delta) / RAY` where `time_delta` is the time
      *         since last drip. A user's reference value is `user_shares * nowChi() / RAY`.
-     *         It can also be set directly by `impair(assets_)`.
+     *         It can also be set directly by `impair(referenceValue_)`.
      */
     function chi() external view returns (uint192);
 
@@ -1073,7 +1073,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
 
     /**
      * @notice Returns the value of `shares_`, calculated up to the current block timestamp.
-     * @dev    Rounds down.
+     * @dev    Converts the shares to their reference value, then to assets through
+     *         `referenceOracle`, rounding down at both steps.
      * @param  shares_ The amount of shares [share units]
      * @return assets_ The value of the shares [asset units]
      */
@@ -1082,7 +1083,8 @@ interface ISparkPrimeVault is IERC20Metadata, IERC20Permit, IAccessControlEnumer
     /**
      * @notice Returns the amount of shares worth `assets_`, calculated up to the current block
      *         timestamp.
-     * @dev    Rounds down.
+     * @dev    Converts the assets to their reference value through `referenceOracle`, then to
+     *         shares, rounding down at both steps.
      * @param  assets_ The amount of assets [asset units]
      * @return shares_ The amount of shares [share units]
      */

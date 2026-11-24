@@ -667,7 +667,7 @@ contract ProcessPendingDepositsTests is SparkPrimeVaultTests {
 
     // Success tests
 
-    function test_processPendingDeposits_infiniteMaxSavingsShares_infiniteMaxRequests() external {
+    function test_processPendingDeposits_infiniteMaxAssets_infiniteMaxRequests() external {
         vm.expectEmit(address(spPrime));
         emit ISparkPrimeVault.ProcessPendingDeposits(operator, type(uint256).max, type(uint256).max);
 
@@ -740,7 +740,7 @@ contract ProcessPendingDepositsTests is SparkPrimeVaultTests {
         _assertDepositRequest(9, ali, ali, 800_000e6 - 2);
     }
 
-    function test_processPendingDeposits_infiniteMaxSavingsShares_limitedMaxRequests() external {
+    function test_processPendingDeposits_infiniteMaxAssets_limitedMaxRequests() external {
         uint256 maxRequests = 6;
 
         vm.expectEmit(address(spPrime));
@@ -797,7 +797,7 @@ contract ProcessPendingDepositsTests is SparkPrimeVaultTests {
         _assertDepositRequest(9, ali, ali, 1_000_000e6 - 1);
     }
 
-    function test_processPendingDeposits_limitedMaxSavingsShares_infiniteMaxRequests() external {
+    function test_processPendingDeposits_limitedMaxAssets_infiniteMaxRequests() external {
         uint256 maxSavingsShares = spUSDC.convertToShares(1_200_000e6);
 
         vm.expectEmit(address(spPrime));
@@ -1234,7 +1234,7 @@ contract ProcessPendingDepositsCancellationsTests is SparkPrimeVaultTests {
         );
     }
 
-    function test_processPendingDepositCancellations_infiniteMaxSavingsShares_infiniteMaxRequests() external {
+    function test_processPendingDepositCancellations_infiniteMaxAssets_infiniteMaxRequests() external {
         _setupMockCallReverts();
 
         vm.expectEmit(address(spPrime));
@@ -1342,7 +1342,7 @@ contract ProcessPendingDepositsCancellationsTests is SparkPrimeVaultTests {
         }
     }
 
-    function test_processPendingDepositCancellations_infiniteMaxSavingsShares_limitedMaxRequests() external {
+    function test_processPendingDepositCancellations_infiniteMaxAssets_limitedMaxRequests() external {
         _setupMockCallReverts();
 
         uint256 maxRequests = 6;
@@ -1432,7 +1432,7 @@ contract ProcessPendingDepositsCancellationsTests is SparkPrimeVaultTests {
         _assertDepositCancellationRequest(9, ali, ali, 1_000_000e6 - 1);
     }
 
-    function test_processPendingDepositCancellations_limitedMaxSavingsShares_infiniteMaxRequests() external {
+    function test_processPendingDepositCancellations_limitedMaxAssets_infiniteMaxRequests() external {
         _setupMockCallReverts();
 
         uint256 maxSavingsShares = spUSDC.convertToShares(2_000_000e6);
@@ -2746,6 +2746,34 @@ contract ProcessPendingRedeemsTests is SparkPrimeVaultTests {
         _assertAccountBalances(vaultBalances, 10);
     }
 
+
+    function test_processPendingRedeems_outOfLiquidity() external {
+        _requestDeposit(user, 1_000_000e6);  // Deposit Request 0 (Filled instantly)
+
+        uint256 shares = spPrime.balanceOf(user);
+
+        uint256 requestId = _requestRedeem(user, shares);
+
+        uint256 pendingShares  = spPrime.pendingRedeemShares();
+        uint256 processedCount = spPrime.processedRedeemCount();
+
+        // The taker takes all the assets, so no redemption can be paid.
+        _take(spPrime.availableLiquidAssets());
+
+        assertEq(spPrime.availableLiquidAssets(), 0);
+
+        _processPendingRedeems();
+
+        // Nothing was filled and the request stays at the head of the queue.
+        assertEq(spPrime.pendingRedeemShares(),  pendingShares);
+        assertEq(spPrime.processedRedeemCount(), processedCount);
+        assertEq(spUSDC.balanceOf(user),         0);
+
+        ( address owner_,,, uint256 shares_ ) = spPrime.getPendingRedeemRequest(requestId);
+
+        assertEq(owner_,  user);
+        assertGt(shares_, 0);
+    }
 
     function test_processPendingRedeems_zeroPayoutTransferFails() external {
         // One vault share is worth less than one asset unit, so it pays out zero.

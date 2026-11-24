@@ -15,7 +15,7 @@ Why the reference unit matters: if the asset earns its own yield (e.g. `spUSDC`)
 
 Shares grow at the VSR whether or not the deployed capital earns it.
 
-`spPRIME` takes USDC and deposits it into a savings vault (`spUSDC`) itself. This vault never deposits into another vault. Setting `asset = spUSDC` and `referenceOracle = spUSDC` gives a setup similar to `spPRIME`, except that users deposit and receive `spUSDC` rather than USDC. Behaviour not described below is the same as in `spPRIME`.
+`spPRIME` takes USDC and deposits it into a savings vault (`spUSDC`) itself. Setting `asset = spUSDC` and `referenceOracle = spUSDC` gives a setup similar to `spPRIME`, except that users deposit and receive `spUSDC` rather than USDC. Behaviour not described below is the same as in `spPRIME`.
 
 ## Differences from `spPRIME`
 
@@ -26,7 +26,7 @@ Shares grow at the VSR whether or not the deployed capital earns it.
   - Amounts users pass in or receive, and the minimum deposit and cancellation amounts, are in asset units. So are the ERC-4626-style views such as `convertToAssets` and `totalAssets`.
   - Each of those views has a reference-value counterpart, e.g. `totalReferenceValue`.
   - `impair` takes a reference value.
-  - Events report asset amounts. Where `spPRIME`'s events reported both a USDC and an spUSDC amount, these report only the asset amount. The exception is `Deposit`, which also reports the reference value used to price the new shares.
+  - Events report asset amounts, except `Drip` and `Impairment`, which report reference values, and `Deposit`, which also reports the reference value used to price the new shares. Where `spPRIME`'s events reported both a USDC and an spUSDC amount, these report only the asset amount.
 - **Names.** Names that referred to the savings vault (e.g. `pendingDepositSavingsShares`) are renamed to refer to the asset (e.g. `pendingDepositAssets`).
 
 ## Mechanics
@@ -44,12 +44,12 @@ Queues, capacity, the redeem fee, pausing, roles and configuration work as in `s
 
 **Asset**
 
-- Any standard ERC-20 token, including ones whose `transfer` returns no value (like USDT). Fee-on-transfer and rebasing tokens are not supported.
+- Any standard ERC-20 token, including ones whose `transfer` returns no value (like USDT). Fee-on-transfer tokens, tokens with transfer hooks (e.g. ERC-777), and tokens whose balance can drop without the vault transferring them (e.g. rebasing tokens) are not supported.
 
 **Reference oracle** (if set)
 
 - **Its price must not be manipulable,** since deposits and redemptions are priced with it.
-- **A price that lags known losses can be exploited,** see [Asset losses](#asset-losses).
+- **A price that lags expected losses can be exploited,** see [Asset losses](#asset-losses).
 - **Both conversions use the same price and round down,** as the ERC-4626 standard requires. Otherwise a payout could exceed what the vault holds and break its accounting.
 - **Its shares and assets have the same decimals** (like spUSDC and USDC, both 6).
 - **It must not revert.** If it does, deposits and redemptions can't be processed. Deposit cancellations still work.
@@ -58,7 +58,7 @@ Queues, capacity, the redeem fee, pausing, roles and configuration work as in `s
 
 If the asset loses value against the reference unit, share values don't change, so redemptions pay out more of the asset than was deposited, unless the loss is passed to holders with `impair`.
 
-If the oracle's price lags a known loss, holders of the asset can deposit it at the old price before the loss shows up, then redeem for more of the asset afterwards. This moves up to all of their loss onto the vault (how much depends on whether the loss is passed to holders with `impair`, and on how much of the vault's backing is still the asset).
+If the oracle's price lags an expected loss, holders of the asset can deposit it at the old price before the loss shows up, then redeem for more of the asset afterwards. This moves up to all of their loss onto the vault (how much depends on whether the loss is passed to holders with `impair`, and on how much of the vault's backing is still the asset).
 
 Whether this needs to be prevented depends on whether the asset is trusted never to lose value against the reference unit (e.g. if its losses are assumed to be covered). If it is, `instantFill` can be enabled. If not, deposits need to be stopped as soon as an event that could make the asset lose value happens. This requires both disabling `instantFill` and having `OPERATOR_ROLE` wait long enough after each deposit request before filling it, so there is time to stop it from filling once such an event happens.
 

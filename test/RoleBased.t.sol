@@ -602,7 +602,7 @@ contract RoleBasedTests is TestBase {
         spPrime.take(1_000_000e6);
     }
 
-    function test_take_insufficientSharesBoundary() external {
+    function test_take_insufficientAssetsBoundary() external {
         _requestDeposit(user, 1_000_000e6);  // Instant fill
 
         uint256 vaultBalance = spUSDC.balanceOf(address(spPrime));

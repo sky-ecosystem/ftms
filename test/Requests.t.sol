@@ -129,7 +129,7 @@ contract RequestDepositCancellationTests is TestBase {
         spPrime.requestDepositCancellation(depositRequestId, user, MINIMUM_DEPOSIT_CANCELLATION);
     }
 
-    function test_requestDepositCancellation_savingsSharesTooHighBoundary() external {
+    function test_requestDepositCancellation_assetsTooHighBoundary() external {
         vm.expectRevert(ISparkPrimeVault.AssetsTooHigh.selector);
         vm.prank(user);
         spPrime.requestDepositCancellation(depositRequestId, user, requestShares + 1);
