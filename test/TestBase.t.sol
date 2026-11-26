@@ -7,12 +7,10 @@ import { ERC1967Proxy } from "../lib/oz/contracts/proxy/ERC1967/ERC1967Proxy.sol
 
 import { Ethereum } from "../lib/spark-address-registry/src/Ethereum.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
-import { SparkPrimeVault }  from "../src/SparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
+import { FTMS }  from "../src/FTMS.sol";
 
 interface IERC20Like {
-
-    function allowance(address owner, address spender) external view returns (uint256);
 
     function approve(address spender, uint256 amount) external;
 
@@ -21,6 +19,10 @@ interface IERC20Like {
 }
 
 interface ISparkVaultLike {
+
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    function deposit(uint256 assets, address receiver) external returns (uint256);
 
     function redeem(uint256 shares, address to, address from) external returns (uint256);
 
@@ -51,10 +53,10 @@ abstract contract TestBase is Test {
     struct VaultState {
         uint256 rho;                     // Last chi update timestamp
         uint256 chi;                     // Rate accumulator [ray]
-        uint256 totalAssets;             // USDC value of supply
-        uint256 totalClaimable;          // USDC value of all claimable assets
+        uint256 totalValue;              // USDC value of supply (`totalReferenceValue`)
+        uint256 totalClaimable;          // USDC value of all claimable spUSDC
         uint256 availableCapacityValue;  // USDC value of spPrime shares left to mint
-        uint256 availableLiquidAssets;   // USDC the vault can withdraw from spUSDC now (maxWithdraw)
+        uint256 availableLiquidValue;    // USDC value of the spUSDC the vault holds, excluding claimable
         PendingRequestsState depositRequests;
         PendingRequestsState depositCancellationRequests;
         PendingRequestsState redeemRequests;
@@ -98,22 +100,29 @@ abstract contract TestBase is Test {
     IERC20Like      internal usdc   = IERC20Like(Ethereum.USDC);
     ISparkVaultLike internal spUSDC = ISparkVaultLike(Ethereum.SPARK_VAULT_V2_SPUSDC);
 
-    SparkPrimeVault internal spPrime;
+    // The FTMS vault, named `spPrime` as in `spPRIME`'s tests to keep the diff against them small.
+    FTMS internal spPrime;
 
     VaultState internal vaultState;
+
+    function _instantFill() internal virtual pure returns (bool) {
+        return true;
+    }
 
     function setUp() public virtual {
         vm.createSelectFork(getChain("mainnet").rpcUrl, _getBlock());
 
-        spPrime = SparkPrimeVault(
+        spPrime = FTMS(
             address(new ERC1967Proxy(
-                address(new SparkPrimeVault()),
+                address(new FTMS()),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IFTMS.initialize,
                     (
                         address(spUSDC),
-                        "Spark Prime USDC",
-                        "spPrime",
+                        address(spUSDC),
+                        _instantFill(),
+                        "FTMS USDC",
+                        "ftmsUSDC",
                         admin,
                         MINIMUM_DEPOSIT,
                         MINIMUM_DEPOSIT_CANCELLATION,
@@ -162,10 +171,10 @@ abstract contract TestBase is Test {
         vaultState = VaultState({
             rho                         : vm.getBlockTimestamp(),
             chi                         : uint192(RAY),
-            totalAssets                 : 0,
+            totalValue                  : 0,
             totalClaimable              : 0,
-            availableCapacityValue      : spPrime.convertToAssets(VAULT_CAPACITY),
-            availableLiquidAssets       : 0,
+            availableCapacityValue      : spPrime.convertSharesToReferenceValue(VAULT_CAPACITY),
+            availableLiquidValue        : 0,
             depositRequests             : depositRequests,
             depositCancellationRequests : depositCancellationRequests,
             redeemRequests              : redeemRequests
@@ -216,11 +225,20 @@ abstract contract TestBase is Test {
     }
 
     function _requestDeposit(address account, address recipient, uint256 assets) internal returns (uint256 requestId) {
+        uint256 savingsShares = _dealSavingsShares(account, assets);
+
+        vm.prank(account);
+        requestId = spPrime.requestDeposit(savingsShares, recipient, 0);
+    }
+
+    // Deposits `assets` of USDC into spUSDC for `account` and approves the vault to pull the shares.
+    function _dealSavingsShares(address account, uint256 assets) internal returns (uint256 savingsShares) {
         deal(address(usdc), account, assets);
 
         vm.startPrank(account);
-        usdc.approve(address(spPrime), assets);
-        requestId = spPrime.requestDeposit(assets, recipient, 0);
+        usdc.approve(address(spUSDC), assets);
+        savingsShares = spUSDC.deposit(assets, account);
+        spUSDC.approve(address(spPrime), savingsShares);
         vm.stopPrank();
     }
 
@@ -310,37 +328,37 @@ abstract contract TestBase is Test {
         );
 
         assertApproxEqAbs(
-            spPrime.totalAssets(),
-            vaultState.totalAssets,
+            spPrime.totalReferenceValue(),
+            vaultState.totalValue,
             tolerance,
-            "vaultState.totalAssets"
+            "vaultState.totalValue"
         );
 
         assertApproxEqAbs(
-            spPrime.totalClaimable(),
+            spUSDC.convertToAssets(spPrime.totalClaimable()),
             vaultState.totalClaimable,
             tolerance,
             "vaultState.totalClaimable"
         );
 
         assertApproxEqAbs(
-            spPrime.convertToAssets(spPrime.availableCapacity()),
+            spPrime.convertSharesToReferenceValue(spPrime.availableCapacity()),
             vaultState.availableCapacityValue,
             tolerance,
             "vaultState.availableCapacityValue"
         );
 
         assertApproxEqAbs(
-            spPrime.availableLiquidAssets(),
-            vaultState.availableLiquidAssets,
+            spPrime.availableLiquidReferenceValue(),
+            vaultState.availableLiquidValue,
             tolerance,
-            "vaultState.availableLiquidAssets"
+            "vaultState.availableLiquidValue"
         );
 
         // Deposit Requests
 
         assertApproxEqAbs(
-            spUSDC.convertToAssets(spPrime.pendingDepositSavingsShares()),
+            spUSDC.convertToAssets(spPrime.pendingDepositAssets()),
             vaultState.depositRequests.pendingShareValue,
             tolerance,
             "vaultState.depositRequests.pendingShareValue"
@@ -361,7 +379,7 @@ abstract contract TestBase is Test {
         // Deposit Cancellation Requests
 
         assertApproxEqAbs(
-            spUSDC.convertToAssets(spPrime.pendingCancelledDepositSavingsShares()),
+            spUSDC.convertToAssets(spPrime.pendingCancelledDepositAssets()),
             vaultState.depositCancellationRequests.pendingShareValue,
             tolerance,
             "vaultState.depositCancellationRequests.pendingShareValue"
@@ -382,7 +400,7 @@ abstract contract TestBase is Test {
         // Redeem Requests
 
         assertApproxEqAbs(
-            spPrime.convertToAssets(spPrime.pendingRedeemShares()),
+            spPrime.convertSharesToReferenceValue(spPrime.pendingRedeemShares()),
             vaultState.redeemRequests.pendingShareValue,
             tolerance,
             "vaultState.redeemRequests.pendingShareValue"
@@ -415,7 +433,7 @@ abstract contract TestBase is Test {
         );
 
         assertApproxEqAbs(
-            spPrime.assetsOf(accountState.account),
+            spPrime.referenceValueOf(accountState.account),
             accountState.shareValue,
             tolerance,
             "accountState.shareValue"
@@ -429,7 +447,7 @@ abstract contract TestBase is Test {
         );
 
         assertApproxEqAbs(
-            spPrime.claimableAssetsOf(accountState.account),
+            spUSDC.convertToAssets(spPrime.claimableAssetsOf(accountState.account)),
             accountState.claimableAssetsOf,
             tolerance,
             "accountState.claimableAssetsOf"
@@ -487,7 +505,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue,
@@ -508,7 +526,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(request.shares),
+            spUSDC.convertToAssets(request.amount),
             savingsShareValue,
             "depositRequest.savingsShareValue"
         );
@@ -521,7 +539,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue
@@ -584,7 +602,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositCancellationRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue,
@@ -605,7 +623,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spUSDC.convertToAssets(request.shares),
+            spUSDC.convertToAssets(request.amount),
             savingsShareValue,
             "depositCancellationRequest.savingsShareValue"
         );
@@ -618,7 +636,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertDepositCancellationRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         savingsShareValue
@@ -651,7 +669,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spPrime.convertToAssets(shares_),
+            spPrime.convertSharesToReferenceValue(shares_),
             shareValue,
             "redeemRequest.shareValue"
         );
@@ -677,7 +695,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertRedeemRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         shareValue,
@@ -698,7 +716,7 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            spPrime.convertToAssets(request.shares),
+            spPrime.convertSharesToReferenceValue(request.amount),
             shareValue,
             "redeemRequest.shareValue"
         );
@@ -711,7 +729,7 @@ abstract contract TestBase is Test {
     }
 
     function _assertRedeemRequest(
-        ISparkPrimeVault.Request memory request,
+        IFTMS.Request memory request,
         address                         owner,
         address                         recipient,
         uint256                         shareValue
@@ -719,7 +737,7 @@ abstract contract TestBase is Test {
         _assertRedeemRequest(request, owner, recipient, shareValue, vm.getBlockTimestamp());
     }
 
-    function _assertEmptyRequest(ISparkPrimeVault.Request memory request) internal pure {
+    function _assertEmptyRequest(IFTMS.Request memory request) internal pure {
         assertEq(
             request.owner,
             address(0),
@@ -733,9 +751,9 @@ abstract contract TestBase is Test {
         );
 
         assertEq(
-            request.shares,
+            request.amount,
             0,
-            "request.shares not zero"
+            "request.amount not zero"
         );
 
         assertEq(

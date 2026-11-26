@@ -3,40 +3,42 @@ pragma solidity ^0.8.34;
 
 import { Initializable } from "../lib/oz/contracts/proxy/utils/Initializable.sol";
 
-import { ERC1967Proxy, TestBase, SparkPrimeVault } from "./TestBase.t.sol";
+import { ERC1967Proxy, TestBase, FTMS } from "./TestBase.t.sol";
 
-import { ISparkPrimeVault } from "../src/ISparkPrimeVault.sol";
+import { IFTMS } from "../src/IFTMS.sol";
 
-import { SparkPrimeVault } from "../src/SparkPrimeVault.sol";
+import { FTMS } from "../src/FTMS.sol";
 
 contract InitializeTests is TestBase {
 
     address internal deployer = makeAddr("deployer");
 
-    SparkPrimeVault internal implementation;
+    FTMS internal implementation;
 
     function setUp() public override virtual {
         super.setUp();
 
         vm.prank(deployer);
-        implementation = new SparkPrimeVault();
+        implementation = new FTMS();
     }
 
     function _deploy(uint256 minDeposit, uint256 minDepositCancellation, uint256 minRedeem)
         internal
-        returns (ISparkPrimeVault)
+        returns (IFTMS)
     {
         vm.prank(deployer);
 
-        return SparkPrimeVault(
+        return FTMS(
             address(new ERC1967Proxy(
                 address(implementation),
                 abi.encodeCall(
-                    ISparkPrimeVault.initialize,
+                    IFTMS.initialize,
                     (
                         address(spUSDC),
-                        "Spark Prime USDC",
-                        "spPrime",
+                        address(spUSDC),
+                        true,
+                        "FTMS USDC",
+                        "ftmsUSDC",
                         admin,
                         minDeposit,
                         minDepositCancellation,
@@ -52,60 +54,61 @@ contract InitializeTests is TestBase {
     /**********************************************************************************************/
 
     function test_initialize_zeroMinDeposit() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinDeposit.selector);
+        vm.expectRevert(IFTMS.ZeroMinDeposit.selector);
         _deploy(0, 0, 0);
     }
 
     function test_initialize_zeroMinDepositCancellation() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinDepositCancellation.selector);
+        vm.expectRevert(IFTMS.ZeroMinDepositCancellation.selector);
         _deploy(1, 0, 0);
     }
 
     function test_initialize_zeroMinRedeem() external {
-        vm.expectRevert(ISparkPrimeVault.ZeroMinRedeem.selector);
+        vm.expectRevert(IFTMS.ZeroMinRedeem.selector);
         _deploy(1, 1, 0);
     }
 
     function test_initialize_alreadyInitialized() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        spPrime.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        spPrime.initialize(address(spUSDC), address(spUSDC), true, "FTMS USDC", "ftmsUSDC", admin, 1, 1, 1);
     }
 
     function test_initialize_implementationDisabled() external {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
-        implementation.initialize(address(spUSDC), "Spark Prime USDC", "spPrime", admin, 1, 1, 1);
+        implementation.initialize(address(spUSDC), address(spUSDC), true, "FTMS USDC", "ftmsUSDC", admin, 1, 1, 1);
     }
 
     function test_initialize() external {
         address expectedProxy = vm.computeCreateAddress(deployer, vm.getNonce(deployer));
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.Drip(uint192(RAY), 0);
+        emit IFTMS.Drip(uint192(RAY), 0);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.VSRSet(expectedProxy, RAY);
+        emit IFTMS.VSRSet(expectedProxy, RAY);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.VSRBoundsSet(expectedProxy, RAY, RAY);
+        emit IFTMS.VSRBoundsSet(expectedProxy, RAY, RAY);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinDepositSet(deployer, MINIMUM_DEPOSIT);
+        emit IFTMS.MinDepositSet(deployer, MINIMUM_DEPOSIT);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinDepositCancellationSet(deployer, MINIMUM_DEPOSIT_CANCELLATION);
+        emit IFTMS.MinDepositCancellationSet(deployer, MINIMUM_DEPOSIT_CANCELLATION);
 
         vm.expectEmit(expectedProxy);
-        emit ISparkPrimeVault.MinRedeemSet(deployer, MINIMUM_REDEEM);
+        emit IFTMS.MinRedeemSet(deployer, MINIMUM_REDEEM);
 
-        ISparkPrimeVault vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
+        IFTMS vault = _deploy(MINIMUM_DEPOSIT, MINIMUM_DEPOSIT_CANCELLATION, MINIMUM_REDEEM);
 
         assertEq(address(vault), expectedProxy);
 
-        assertEq(vault.savings(),  address(spUSDC));
-        assertEq(vault.asset(),    address(usdc));
-        assertEq(vault.name(),     "Spark Prime USDC");
-        assertEq(vault.symbol(),   "spPrime");
-        assertEq(vault.decimals(), 6);
+        assertEq(vault.asset(),           address(spUSDC));
+        assertEq(vault.referenceOracle(), address(spUSDC));
+        assertEq(vault.instantFill(),     true);
+        assertEq(vault.name(),            "FTMS USDC");
+        assertEq(vault.symbol(),          "ftmsUSDC");
+        assertEq(vault.decimals(),        6);
 
         assertTrue(vault.hasRole(DEFAULT_ADMIN_ROLE, admin));
 
@@ -118,8 +121,6 @@ contract InitializeTests is TestBase {
         assertEq(vault.minDeposit(),             MINIMUM_DEPOSIT);
         assertEq(vault.minDepositCancellation(), MINIMUM_DEPOSIT_CANCELLATION);
         assertEq(vault.minRedeem(),              MINIMUM_REDEEM);
-
-        assertEq(usdc.allowance(address(vault), address(spUSDC)), type(uint256).max);
     }
 
 }
