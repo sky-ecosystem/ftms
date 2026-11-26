@@ -14,7 +14,21 @@ fs_permissions = [
 runs = 1000
 
 [invariant]
+runs           = 50
+depth          = 300
 fail_on_revert = true
+
+[profile.pr-ci.invariant]
+runs  = 200
+depth = 500
+
+[profile.master-ci.invariant]
+runs  = 500
+depth = 500
+
+[profile.coverage.invariant]
+runs  = 5
+depth = 50
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
