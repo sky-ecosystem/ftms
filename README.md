@@ -28,6 +28,9 @@ Shares grow at the VSR whether or not the deployed capital earns it.
   - `impair` takes a reference value.
   - Events report asset amounts, except `Drip` and `Impairment`, which report reference values, and `Deposit`, which also reports the reference value used to price the new shares. Where `spPRIME`'s events reported both a USDC and an spUSDC amount, these report only the asset amount.
 - **Names.** The contract and its interface are renamed from `SparkPrimeVault` and `ISparkPrimeVault` to `FTMS` and `IFTMS`. Names that referred to the savings vault (e.g. `pendingDepositSavingsShares`) are renamed to refer to the asset (e.g. `pendingDepositAssets`).
+- **No dust from deposit cancellations.** A partial cancellation must leave at least `minDeposit` in the request, and a full cancellation is allowed even below `minDepositCancellation`. `spPRIME` lets a cancellation leave any remainder, so a deposit can be reduced to dust that can no longer be cancelled. Partial fills can still leave dust, as in `spPRIME`, but it can always be cancelled as a whole.
+
+Audit findings on `spPRIME` that Spark acknowledged rather than fixed apply to FTMS as well, unless stated above.
 
 ## Mechanics
 

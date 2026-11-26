@@ -138,7 +138,46 @@ contract RequestDepositCancellationTests is TestBase {
         spPrime.requestDepositCancellation(depositRequestId, user, requestShares);
     }
 
+    function test_requestDepositCancellation_remainderBelowMinDepositBoundary() external {
+        vm.expectRevert(IFTMS.RemainderBelowMinDeposit.selector);
+        vm.prank(user);
+        spPrime.requestDepositCancellation(depositRequestId, user, requestShares - MINIMUM_DEPOSIT + 1);
+
+        vm.prank(user);
+        spPrime.requestDepositCancellation(depositRequestId, user, requestShares - MINIMUM_DEPOSIT);
+
+        ( , , , uint256 remainingShares ) = spPrime.getPendingDepositRequest(depositRequestId);
+        assertEq(remainingShares, MINIMUM_DEPOSIT);
+    }
+
+    function test_requestDepositCancellation_requestBelowMinDeposit() external {
+        // A request below `minDeposit` can only be cancelled in full.
+        vm.prank(admin);
+        spPrime.setMinDeposit(requestShares + 1);
+
+        vm.expectRevert(IFTMS.RemainderBelowMinDeposit.selector);
+        vm.prank(user);
+        spPrime.requestDepositCancellation(depositRequestId, user, requestShares - 1);
+
+        vm.prank(user);
+        spPrime.requestDepositCancellation(depositRequestId, user, requestShares);
+
+        _assertEmptyDepositRequest(depositRequestId);
+    }
+
     // Success tests
+
+    function test_requestDepositCancellation_fullBelowMinDepositCancellation() external {
+        // A full cancellation is allowed below `minDepositCancellation`.
+        vm.prank(admin);
+        spPrime.setMinDepositCancellation(requestShares + 1);
+
+        vm.prank(user);
+        uint256 cancelRequestId = spPrime.requestDepositCancellation(depositRequestId, recipient, requestShares);
+
+        _assertEmptyDepositRequest(depositRequestId);
+        _assertDepositCancellationRequest(cancelRequestId, user, recipient, 1_000_000e6 - 1);
+    }
 
     function test_requestDepositCancellation_whilePaused() external {
         _pause();

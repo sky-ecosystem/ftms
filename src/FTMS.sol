@@ -379,8 +379,12 @@ contract FTMS is AccessControlEnumerableUpgradeable, UUPSUpgradeable, IFTMS {
 
         require(depositRequest_.amount != 0,         NoRequest());
         require(msg.sender == depositRequest_.owner, NotRequestOwner());
-        require(assets_ >= minDepositCancellation,   BelowMinDepositCancellation());
         require(assets_ <= depositRequest_.amount,   AssetsTooHigh());
+
+        if (assets_ != depositRequest_.amount) {
+            require(assets_ >= minDepositCancellation,              BelowMinDepositCancellation());
+            require(depositRequest_.amount - assets_ >= minDeposit, RemainderBelowMinDeposit());
+        }
 
         _depositCancellationRequests.push(
             Request(depositRequest_.owner, recipient_, uint64(block.timestamp), assets_)

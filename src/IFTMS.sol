@@ -379,6 +379,12 @@ interface IFTMS is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
     /// @notice Thrown when cancelling more assets than the deposit request has.
     error AssetsTooHigh();
 
+    /**
+     * @notice Thrown when a partial deposit cancellation would leave less than the minimum
+     *         deposit.
+     */
+    error RemainderBelowMinDeposit();
+
     /// @notice Thrown when a requested range of requests starts after the end of the queue.
     error StartIdTooLarge();
 
@@ -651,12 +657,13 @@ interface IFTMS is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
     /**
      * @notice Cancels `assets_` of a deposit request and queues them to be sent to `recipient_`.
      * @dev    Can only be called by the owner of the request, including while the vault is paused.
-     *         `assets_` must be at least `minDepositCancellation` and at most the unfilled assets
-     *         of the request. If all of them are cancelled the deposit request is
-     *         removed, otherwise it keeps the rest and its position in the queue. `recipient_` must
-     *         be neither `address(0)` nor the vault. Does not drip and does not touch the rest of
-     *         the deposit queue: a fully cancelled entry stays in place until
-     *         `processPendingDeposits` or an instant fill skips over it.
+     *         `assets_` must be at most the unfilled assets of the request. A full cancellation
+     *         removes the deposit request. A partial one must cancel at least
+     *         `minDepositCancellation` and leave at least `minDeposit`, which the request keeps
+     *         together with its position in the queue. `recipient_` must be neither `address(0)`
+     *         nor the vault. Does not drip and does not touch the rest of the deposit queue: a
+     *         fully cancelled entry stays in place until `processPendingDeposits` or an instant
+     *         fill skips over it.
      * @param  requestId_    The ID of the deposit request to cancel
      * @param  recipient_    The address to receive the assets when the cancellation is filled
      * @param  assets_       The amount of assets to cancel [asset units]
@@ -1129,7 +1136,7 @@ interface IFTMS is IERC20Metadata, IERC20Permit, IAccessControlEnumerable {
     function referenceValueOf(address owner_) external view returns (uint256 referenceValue_);
 
     /**
-     * @notice Returns whether the contract implements the interface `interfaceId`.
+     * @notice Returns whether the contract implements the interface `interfaceId_`.
      * @param  interfaceId_ The interface ID to check
      * @return implemented_ Whether the contract implements the interface
      */
