@@ -1706,6 +1706,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
         maxSavingsShareValue = _bound(maxSavingsShareValue, 0, 2 * vaultState.depositCancellationRequests.pendingShareValue);
         maxRequests          = _bound(maxRequests,          0, 2 * vaultState.depositCancellationRequests.length);
 
+        uint256[10] memory paid;  // Savings shares transferred for the requests compared below
+
         uint256 maxSavingsShares = spUSDC.convertToShares(maxSavingsShareValue);
 
         uint256 savingsSharesWithdrawn;
@@ -1714,6 +1716,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
         for (uint256 i = 0; i < maxRequests; ++i) {
             if (i == 0) {
                 ( uint256 savingsShares, uint256 assets, bool isPartial ) = _getMaxCancellableAmount(100_000e6, maxSavingsShares, savingsSharesWithdrawn);
+
+                paid[0] = savingsShares;
 
                 _mockTransferRevert(savingsShares, ali);
 
@@ -1726,6 +1730,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
 
             if (i == 1) {
                 ( uint256 savingsShares, uint256 assets, bool isPartial ) = _getMaxCancellableAmount(200_000e6, maxSavingsShares, savingsSharesWithdrawn);
+
+                paid[1] = savingsShares;
 
                 bobBalances.savingsShareValue += assets;
                 savingsSharesWithdrawn += savingsShares;
@@ -1757,6 +1763,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
             if (i == 4) {
                 ( uint256 savingsShares, uint256 assets, bool isPartial ) = _getMaxCancellableAmount(500_000e6, maxSavingsShares, savingsSharesWithdrawn);
 
+                paid[4] = savingsShares;
+
                 _mockTransferRevert(savingsShares, bob);
 
                 bobBalances.claimableAssetsOf += assets;
@@ -1777,6 +1785,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
 
             if (i == 6) {
                 ( uint256 savingsShares, uint256 assets, bool isPartial ) = _getMaxCancellableAmount(700_000e6, maxSavingsShares, savingsSharesWithdrawn);
+
+                paid[6] = savingsShares;
 
                 _mockTransferRevert(savingsShares, ali);
 
@@ -1811,6 +1821,8 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
             if (i == 9) {
                 ( uint256 savingsShares, uint256 assets, bool isPartial ) = _getMaxCancellableAmount(1_000_000e6, maxSavingsShares, savingsSharesWithdrawn);
 
+                paid[9] = savingsShares;
+
                 aliBalances.savingsShareValue += assets;
                 savingsSharesWithdrawn += savingsShares;
 
@@ -1830,6 +1842,13 @@ contract ProcessPendingDepositsCancellationsTests is FTMSTests {
 
         vaultBalances.savingsShareValue += totalClaimable;
         vaultBalances.savingsShareValue -= assetsWithdrawn;
+
+        // A mocked revert matches on the recipient and the amount, so it also hits any other transfer
+        // of the same amount to the same recipient. Skip the rare inputs where a partial fill makes a
+        // transfer that succeeds (bob's request 1, ali's request 9) equal one that fails (bob's request
+        // 4, ali's requests 0 and 6).
+        vm.assume(paid[4] == 0 || paid[4] != paid[1]);
+        vm.assume(paid[9] == 0 || (paid[9] != paid[0] && paid[9] != paid[6]));
 
         vm.prank(operator);
         spPrime.processPendingDepositCancellations(maxSavingsShares, maxRequests);
@@ -1997,6 +2016,18 @@ contract ProcessPendingRedeemsTests is FTMSTests {
             ""
         );
     }
+
+    // Failure tests
+
+    function test_processPendingRedeems_isPaused() external {
+        _pause();
+
+        vm.expectRevert(IFTMS.IsPaused.selector);
+        vm.prank(operator);
+        spPrime.processPendingRedeems(type(uint256).max, type(uint256).max);
+    }
+
+    // Success tests
 
     function test_processPendingRedeems_infiniteMaxShares_infiniteMaxRequests() external {
         _setupMockCallReverts();
@@ -2577,12 +2608,15 @@ contract ProcessPendingRedeemsTests is FTMSTests {
         assets = spUSDC.convertToAssets(spUSDC.convertToShares(spPrime.convertSharesToReferenceValue(shares)));
     }
 
-    function _mockTransferRevert(uint256 shares, address recipient) internal {
-        uint256 savingsShares = spUSDC.convertToShares(spPrime.convertSharesToReferenceValue(shares));
+    // The savings shares the vault transfers to pay out `shares`.
+    function _savingsSharesPaid(uint256 shares) internal view returns (uint256) {
+        return spUSDC.convertToShares(spPrime.convertSharesToReferenceValue(shares));
+    }
 
+    function _mockTransferRevert(uint256 shares, address recipient) internal {
         vm.mockCallRevert(
             address(spUSDC),
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, savingsShares),
+            abi.encodeWithSelector(IERC20.transfer.selector, recipient, _savingsSharesPaid(shares)),
             ""
         );
     }
@@ -2590,6 +2624,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
     function testFuzz_processPendingRedeems(uint256 maxShareValue, uint256 maxRequests) external {
         maxShareValue = _bound(maxShareValue, 0, 2 * vaultState.redeemRequests.pendingShareValue);
         maxRequests   = _bound(maxRequests,   0, 2 * vaultState.redeemRequests.length);
+
+        uint256[10] memory paid;  // Savings shares transferred for the requests compared below
 
         uint256 maxShares = spPrime.convertReferenceValueToShares(maxShareValue);
 
@@ -2600,6 +2636,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
         for (uint256 i = 0; i < maxRequests; ++i) {
             if (i == 0) {
                 ( uint256 shares, uint256 assets, bool isPartial ) = _getMaxRedeemableAmount(100_000e6, maxShares, sharesRedeemed);
+
+                paid[0] = _savingsSharesPaid(shares);
 
                 _mockTransferRevert(shares, ali);
 
@@ -2613,6 +2651,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
 
             if (i == 1) {
                 ( uint256 shares, uint256 assets, bool isPartial ) = _getMaxRedeemableAmount(200_000e6, maxShares, sharesRedeemed);
+
+                paid[1] = _savingsSharesPaid(shares);
 
                 bobBalances.savingsShareValue += assets;
                 sharesRedeemed     += shares;
@@ -2647,6 +2687,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
             if (i == 4) {
                 ( uint256 shares, uint256 assets, bool isPartial ) = _getMaxRedeemableAmount(500_000e6, maxShares, sharesRedeemed);
 
+                paid[4] = _savingsSharesPaid(shares);
+
                 _mockTransferRevert(shares, bob);
 
                 bobBalances.claimableAssetsOf += assets;
@@ -2669,6 +2711,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
 
             if (i == 6) {
                 ( uint256 shares, uint256 assets, bool isPartial ) = _getMaxRedeemableAmount(700_000e6, maxShares, sharesRedeemed);
+
+                paid[6] = _savingsSharesPaid(shares);
 
                 _mockTransferRevert(shares, ali);
 
@@ -2710,6 +2754,8 @@ contract ProcessPendingRedeemsTests is FTMSTests {
 
                 ( uint256 shares, uint256 assets, ) = _getMaxRedeemableAmount(1_000_000e6, fillable, sharesRedeemed);
 
+                paid[9] = _savingsSharesPaid(shares);
+
                 aliBalances.savingsShareValue += assets;
                 sharesRedeemed     += shares;
                 assetsRedeemed     += assets;
@@ -2734,6 +2780,13 @@ contract ProcessPendingRedeemsTests is FTMSTests {
         vaultBalances.shareValue        -= shareValueRedeemed;
         vaultBalances.savingsShareValue += totalClaimable;
         vaultBalances.savingsShareValue -= assetsRedeemed;
+
+        // A mocked revert matches on the recipient and the amount, so it also hits any other transfer
+        // of the same amount to the same recipient. Skip the rare inputs where a partial fill makes a
+        // transfer that succeeds (bob's request 1, ali's request 9) equal one that fails (bob's request
+        // 4, ali's requests 0 and 6).
+        vm.assume(paid[4] == 0 || paid[4] != paid[1]);
+        vm.assume(paid[9] == 0 || (paid[9] != paid[0] && paid[9] != paid[6]));
 
         vm.prank(operator);
         spPrime.processPendingRedeems(maxShares, maxRequests);
